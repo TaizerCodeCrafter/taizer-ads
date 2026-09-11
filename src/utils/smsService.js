@@ -12,16 +12,14 @@
  */
 export function normalizePhoneNumber(phone) {
   if (!phone) return '';
-  let clean = phone.replace(/[^0-9+]/g, '');
+  let clean = phone.toString().replace(/[^0-9]/g, '');
 
-  if (clean.startsWith('+')) {
-    clean = clean.substring(1);
-  }
-
-  // Handle local 10-digit 07XXXXXXXX
-  if (clean.startsWith('0') && clean.length === 10) {
+  // Handle redundant 0 when combined with country code: +9407... or 9407...
+  if (clean.startsWith('940')) {
+    clean = '94' + clean.substring(3);
+  } else if (clean.startsWith('0')) {
     clean = '94' + clean.substring(1);
-  } else if (clean.length === 9 && (clean.startsWith('7') || clean.startsWith('1') || clean.startsWith('2') || clean.startsWith('3') || clean.startsWith('4') || clean.startsWith('5') || clean.startsWith('6') || clean.startsWith('8') || clean.startsWith('9'))) {
+  } else if (!clean.startsWith('94') && clean.length === 9) {
     clean = '94' + clean;
   }
 
@@ -118,7 +116,11 @@ export async function sendNotifyLkSms({ to, message, userId, apiKey, senderId = 
  * Dispatches either real SMS (if Live mode & keys configured) or simulation test code
  */
 export async function dispatchOtp({ phone, countryCode = '+94', smsConfig = {} }) {
-  const fullPhone = `${countryCode}${phone}`.trim();
+  let cleanUserPhone = (phone || '').toString().trim();
+  if (cleanUserPhone.startsWith('0')) {
+    cleanUserPhone = cleanUserPhone.substring(1);
+  }
+  const fullPhone = `${countryCode}${cleanUserPhone}`.trim();
   const normalized = normalizePhoneNumber(fullPhone);
   const otpLength = Number(smsConfig?.otpLength) || 4;
   const otpCode = generateOtp(otpLength);

@@ -160,8 +160,12 @@ export default function LoginForm({
     }
 
     // Successful login
+    let cleanNumber = (phoneNumber || '').replace(/[^0-9]/g, '');
+    if (cleanNumber.startsWith('0')) {
+      cleanNumber = cleanNumber.substring(1);
+    }
     onLoginSuccess({
-      phone: `${countryCode} ${phoneNumber}`,
+      phone: `${countryCode} ${cleanNumber}`,
       id: `#${Math.floor(10000 + Math.random() * 90000)}`,
       type: 'User'
     });

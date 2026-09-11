@@ -397,7 +397,11 @@ export default function UserDashboard({
       return;
     }
 
-    const fullPhone = `${phoneCode}${phone}`;
+    let cleanPhoneInput = (phone || '').toString().trim().replace(/[^0-9]/g, '');
+    if (cleanPhoneInput.startsWith('0')) {
+      cleanPhoneInput = cleanPhoneInput.substring(1);
+    }
+    const fullPhone = `${phoneCode}${cleanPhoneInput}`;
     const defaultImg = imagePreview || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80';
 
     const newAd = {
