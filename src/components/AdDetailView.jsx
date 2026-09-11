@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
   ThumbsUp, 
@@ -25,23 +25,53 @@ export default function AdDetailView({
   onShowToast,
   onAddComplaint
 }) {
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(ad.likes || 23000);
+  const [liked, setLiked] = useState(() => {
+    try {
+      const likedIds = JSON.parse(localStorage.getItem('taizer_ads_liked_ids') || '[]');
+      return likedIds.includes(ad.id);
+    } catch (e) {
+      return false;
+    }
+  });
+  const [likeCount, setLikeCount] = useState(ad.likes !== undefined ? Number(ad.likes) : 0);
   const [isComplainModalOpen, setIsComplainModalOpen] = useState(false);
   const [complainReason, setComplainReason] = useState('Fake / Inaccurate Information');
   const [complainText, setComplainText] = useState('');
 
+  useEffect(() => {
+    if (ad && ad.likes !== undefined) {
+      setLikeCount(Number(ad.likes));
+    }
+    try {
+      const likedIds = JSON.parse(localStorage.getItem('taizer_ads_liked_ids') || '[]');
+      setLiked(likedIds.includes(ad.id));
+    } catch (e) {}
+  }, [ad?.id, ad?.likes]);
+
   const isFake = ad.isFake || ad.status === 'Fake Ad' || ad.category === 'fake';
 
   const handleLike = () => {
+    let likedIds = [];
+    try {
+      likedIds = JSON.parse(localStorage.getItem('taizer_ads_liked_ids') || '[]');
+    } catch (e) {}
+
     if (!liked) {
       setLiked(true);
       setLikeCount(prev => prev + 1);
-      onLike && onLike(ad.id);
+      if (!likedIds.includes(ad.id)) {
+        likedIds.push(ad.id);
+        localStorage.setItem('taizer_ads_liked_ids', JSON.stringify(likedIds));
+      }
+      onLike && onLike(ad.id, 1);
       onShowToast && onShowToast('You liked this advertisement!');
     } else {
       setLiked(false);
-      setLikeCount(prev => prev - 1);
+      setLikeCount(prev => Math.max(0, prev - 1));
+      likedIds = likedIds.filter(id => id !== ad.id);
+      localStorage.setItem('taizer_ads_liked_ids', JSON.stringify(likedIds));
+      onLike && onLike(ad.id, -1);
+      onShowToast && onShowToast('Like removed.');
     }
   };
 
@@ -178,17 +208,7 @@ export default function AdDetailView({
         </div>
       </div>
 
-      {/* 4. Red/Pink Telegram Warning Box */}
-      <div className="bg-[#fff1f2] border border-red-200 rounded-lg p-3 sm:p-4 text-xs sm:text-sm text-[#be123c] space-y-0.5 shadow-xs">
-        <p className="font-semibold">
-          <strong>WhatsApp</strong> නිතරම අවහිර වන බැවින් <strong>Telegram</strong> මගින් සම්බන්ධ වන්න.
-        </p>
-        <p className="font-normal text-red-600">
-          <strong>WhatsApp</strong> is always blocked so connect via <strong>Telegram</strong>.
-        </p>
-      </div>
-
-      {/* 5. Contact Buttons (WhatsApp & Telegram) */}
+      {/* 4. Contact Buttons (WhatsApp & Telegram) */}
       <div className="space-y-2.5">
         {/* WhatsApp Green Outline Button */}
         <a

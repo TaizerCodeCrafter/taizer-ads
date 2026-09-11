@@ -83,6 +83,8 @@ export default function AdminPanel({
   onDeleteAd,
   onAddStory,
   onDeleteStory,
+  onApprovePackageRequest,
+  onRejectPackageRequest,
   onExitAdmin,
   onShowToast
 }) {
@@ -1004,6 +1006,8 @@ export default function AdminPanel({
   const expiredAds = ads.filter(a => getAdValidity(a).isExpired);
   const activeLiveAds = ads.filter(a => a.status === 'Approved' && !getAdValidity(a).isExpired);
   const renewalRequests = ads.filter(a => a.renewalStatus === 'requested');
+  const packageRequests = siteConfig?.packageRequests || [];
+  const pendingPackageRequests = packageRequests.filter(r => r.status === 'Pending Admin Review' || r.status === 'pending' || !r.status);
   const vipAdsCount = ads.filter(a => a.badgeType === 'VIP Ad').length;
   const superAdsCount = ads.filter(a => a.badgeType === 'Super Ad').length;
   const estimatedRevenue = (vipAdsCount * pricingConfig.vipAd) + (superAdsCount * pricingConfig.superAd);
@@ -1038,6 +1042,7 @@ export default function AdminPanel({
     if (adFilterStatus === 'approved' && (ad.status !== 'Approved' || validity.isExpired)) return false;
     if (adFilterStatus === 'expired' && !validity.isExpired) return false;
     if (adFilterStatus === 'renewals' && ad.renewalStatus !== 'requested') return false;
+    if (adFilterStatus === 'package-requests' && !ad.packageUpgradeRequested) return false;
     if (adFilterStatus === 'fake' && !(ad.isFake || ad.status === 'Fake Ad')) return false;
     if (adFilterBadge !== 'all' && ad.badgeType !== adFilterBadge) return false;
     if (adSearchQuery) {
@@ -1625,6 +1630,22 @@ export default function AdminPanel({
                   <p className="text-[10px] text-purple-200/80 mt-1 font-medium">Waiting approval</p>
                 </div>
 
+                {/* 📦 Package Requests Counter Card */}
+                <div 
+                  onClick={() => {
+                    setAdFilterStatus('package-requests');
+                    setActiveAdminTab('ads');
+                  }}
+                  className="bg-[#1e293b] border border-amber-900/50 p-3.5 rounded-xl shadow-xs cursor-pointer hover:border-amber-500 transition group"
+                >
+                  <p className="text-xs text-amber-400 font-semibold flex items-center justify-between">
+                    <span>📦 Packages</span>
+                    <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+                  </p>
+                  <p className="text-2xl font-black text-amber-300 mt-1">{pendingPackageRequests.length}</p>
+                  <p className="text-[10px] text-amber-200/80 mt-1 font-medium">Wallet Requests</p>
+                </div>
+
                 <div className="bg-[#1e293b] border border-red-900/40 p-3.5 rounded-xl shadow-xs">
                   <p className="text-xs text-red-400 font-semibold">Flagged Fake</p>
                   <p className="text-2xl font-black text-red-400 mt-1">{fakeAds.length}</p>
@@ -1849,6 +1870,96 @@ export default function AdminPanel({
                   </div>
                 </div>
               )}
+
+              {/* 📦 Wallet Package Activation Requests Queue */}
+              {pendingPackageRequests.length > 0 && (
+                <div className="bg-[#1e293b] border border-amber-800/60 rounded-xl p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                      <span>Wallet Package Activation Requests ({pendingPackageRequests.length})</span>
+                    </h3>
+                    <span className="text-xs text-amber-400 font-bold bg-amber-950/60 border border-amber-800 px-2.5 py-0.5 rounded-md">
+                      ✓ Paid via Wallet Credits
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {pendingPackageRequests.map((req) => (
+                      <div
+                        key={req.id}
+                        className="bg-[#0f172a] border border-amber-500/40 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md"
+                      >
+                        <div className="flex items-center space-x-3.5 min-w-0">
+                          {req.targetAdImage ? (
+                            <img
+                              src={req.targetAdImage}
+                              alt=""
+                              className="w-14 h-14 rounded-xl object-cover border border-amber-500/30 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-14 h-14 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                              <Sparkles className="w-6 h-6" />
+                            </div>
+                          )}
+
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded shadow-xs text-white ${
+                                req.packageName === 'VIP Ad' ? 'bg-[#dc2626]' : req.packageName === 'Super Ad' ? 'bg-[#d97706]' : 'bg-[#2563eb]'
+                              }`}>
+                                {req.packageName} (Rs. {Number(req.packageCost || 0).toLocaleString()})
+                              </span>
+                              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded">
+                                ✓ Paid via Wallet
+                              </span>
+                            </div>
+
+                            <h4 className="font-extrabold text-xs sm:text-sm text-white truncate">
+                              {req.targetAdTitle || 'New Ad Package Assignment'}
+                            </h4>
+
+                            <p className="text-[11px] text-gray-400">
+                              User: <strong className="text-gray-200">{req.userName}</strong> ({req.userPhone || req.userId}) • Submitted: {new Date(req.requestedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2 self-end sm:self-center shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => onApprovePackageRequest && onApprovePackageRequest(req.id)}
+                            className="bg-green-600 hover:bg-green-500 text-white text-xs font-black px-4 py-2 rounded-xl flex items-center space-x-1.5 shadow-md transition active:scale-95 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>✓ Approve & Activate Package</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const reason = await showPrompt({
+                                title: 'Reject Package Request',
+                                titleSin: 'පැකේජ ඉල්ලීම ප්‍රතික්ෂේප කිරීම',
+                                message: `Enter reason to reject ${req.packageName} request and refund Rs. ${Number(req.packageCost || 0).toLocaleString()} to ${req.userName}:`,
+                                defaultValue: 'Package request declined by Admin. Credits refunded.',
+                                confirmText: 'Reject & Refund Wallet',
+                                cancelText: 'Cancel'
+                              });
+                              if (reason) {
+                                onRejectPackageRequest && onRejectPackageRequest(req.id, reason);
+                              }
+                            }}
+                            className="bg-red-950/70 hover:bg-red-900 text-red-300 border border-red-800 text-xs font-bold px-3 py-2 rounded-xl transition cursor-pointer"
+                          >
+                            ✕ Reject & Refund
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1876,6 +1987,7 @@ export default function AdminPanel({
                   >
                     <option value="all">All Statuses ({totalAds})</option>
                     <option value="pending">Pending Approval ({pendingAds.length})</option>
+                    <option value="package-requests">📦 Package Requests ({pendingPackageRequests.length})</option>
                     <option value="approved">Approved & Live ({activeLiveAds.length})</option>
                     <option value="renewals">🔄 Renewal Requests ({renewalRequests.length})</option>
                     <option value="expired">⏰ Expired Ads ({expiredAds.length})</option>

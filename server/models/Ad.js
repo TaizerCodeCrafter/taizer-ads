@@ -34,6 +34,9 @@ const AdSchema = new mongoose.Schema(
     expiryDate: { type: String, default: '' },
     autoExpireDays: { type: Number, default: 5 },
     renewalStatus: { type: String, default: 'none' }, // 'none' | 'requested' | 'renewed'
+    packageUpgradeRequested: { type: String, default: '' },
+    packagePaidWithCredits: { type: Boolean, default: false },
+    packageRequestedAt: { type: Date },
     userName: { type: String, default: '' },
     userId: { type: String, default: '' }
   },

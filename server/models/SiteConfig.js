@@ -14,7 +14,8 @@ const SiteConfigSchema = new mongoose.Schema(
     complaints: { type: Array, default: [] },
     notices: { type: Array, default: [] },
     adminProfile: { type: Object, default: {} },
-    sideBlog: { type: Object, default: {} }
+    sideBlog: { type: Object, default: {} },
+    packageRequests: { type: Array, default: [] }
   },
   {
     timestamps: true,

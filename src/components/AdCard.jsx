@@ -1,21 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart, Eye, Clock, Phone, MessageCircle, Bookmark, CheckCircle2, AlertTriangle, MapPin } from 'lucide-react';
 
 export default function AdCard({ ad, onSelectAd, onToggleSave, onLike }) {
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(ad.likes);
+  const [liked, setLiked] = useState(() => {
+    try {
+      const likedIds = JSON.parse(localStorage.getItem('taizer_ads_liked_ids') || '[]');
+      return likedIds.includes(ad.id);
+    } catch (e) {
+      return false;
+    }
+  });
+  const [likeCount, setLikeCount] = useState(ad.likes !== undefined ? Number(ad.likes) : 0);
+
+  useEffect(() => {
+    if (ad && ad.likes !== undefined) {
+      setLikeCount(Number(ad.likes));
+    }
+    try {
+      const likedIds = JSON.parse(localStorage.getItem('taizer_ads_liked_ids') || '[]');
+      setLiked(likedIds.includes(ad.id));
+    } catch (e) {}
+  }, [ad?.id, ad?.likes]);
 
   const isFake = ad.isFake || ad.status === 'Fake Ad' || ad.category === 'fake';
 
   const handleLike = (e) => {
     e.stopPropagation();
+    let likedIds = [];
+    try {
+      likedIds = JSON.parse(localStorage.getItem('taizer_ads_liked_ids') || '[]');
+    } catch (err) {}
+
     if (!liked) {
       setLiked(true);
       setLikeCount(prev => prev + 1);
-      onLike && onLike(ad.id);
+      if (!likedIds.includes(ad.id)) {
+        likedIds.push(ad.id);
+        localStorage.setItem('taizer_ads_liked_ids', JSON.stringify(likedIds));
+      }
+      onLike && onLike(ad.id, 1);
     } else {
       setLiked(false);
-      setLikeCount(prev => prev - 1);
+      setLikeCount(prev => Math.max(0, prev - 1));
+      likedIds = likedIds.filter(id => id !== ad.id);
+      localStorage.setItem('taizer_ads_liked_ids', JSON.stringify(likedIds));
+      onLike && onLike(ad.id, -1);
     }
   };
 

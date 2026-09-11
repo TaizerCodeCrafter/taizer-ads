@@ -350,15 +350,28 @@ export default function App() {
   };
 
   // Use credits to activate an ad package from User Dashboard
-  const handleUseCredits = (amount, packageName) => {
-    if (!currentUser) return false;
-    const currentCredits = currentUser.credits || 0;
+  const handleUseCredits = (arg1, arg2, arg3) => {
+    let targetUserId = currentUser?.id;
+    let amount = 0;
+    let description = 'Wallet Deduction';
+
+    if (typeof arg1 === 'string' && (arg1.startsWith('#') || arg1.startsWith('usr_') || users.some(u => u.id === arg1))) {
+      targetUserId = arg1;
+      amount = Math.abs(Number(arg2) || 0);
+      description = arg3 || 'Wallet Payment';
+    } else {
+      amount = Math.abs(Number(arg1) || 0);
+      description = arg2 || 'Wallet Payment';
+    }
+
+    const targetUser = users.find(u => u.id === targetUserId) || currentUser;
+    if (!targetUser) return false;
+    const currentCredits = targetUser.credits || 0;
     if (currentCredits < amount) {
       showToast('ක්‍රෙඩිට් ශේෂය ප්‍රමාණවත් නොවේ. (Insufficient credits balance)');
       return false;
     }
-    handleAdjustUserCredits(currentUser.id, amount, `Activated ${packageName} package`, 'deduct');
-    showToast(`Rs. ${amount.toLocaleString()} deducted for ${packageName}!`);
+    handleAdjustUserCredits(targetUser.id, amount, description, 'deduct');
     return true;
   };
 
@@ -722,39 +735,181 @@ export default function App() {
     }
   };
 
-  // Toggle Save ad
-  const handleToggleSave = (adId) => {
-    setAds((prev) =>
-      prev.map((ad) => {
-        if (ad.id === adId) {
-          const updated = { ...ad, isSaved: !ad.isSaved };
-          updateAdInDb(adId, { isSaved: updated.isSaved }).catch(e => console.warn('Mongo save sync', e));
-          showToast(updated.isSaved ? 'Ad saved to bookmarks!' : 'Ad removed from bookmarks.');
-          if (selectedAd && selectedAd.id === adId) {
-            setSelectedAd(updated);
-          }
-          return updated;
-        }
-        return ad;
-      })
-    );
+  // Handle click to view ad details & increment view count
+  const handleSelectAd = (ad) => {
+    const rawViews = ad.views || '0';
+    const currentCount = parseInt(String(rawViews).replace(/[^0-9]/g, ''), 10) || 0;
+    const newCount = currentCount + 1;
+    const newViewsStr = newCount >= 1000 ? `${(newCount / 1000).toFixed(1)}K Views` : `${newCount} Views`;
+
+    let targetUpdated = null;
+    const updated = ads.map((a) => {
+      if (a.id === ad.id) {
+        targetUpdated = { ...a, views: newViewsStr, viewsCount: newCount };
+        return targetUpdated;
+      }
+      return a;
+    });
+
+    if (targetUpdated) {
+      updateAdsAndPersist(updated);
+      setSelectedAd(targetUpdated);
+      updateAdInDb(ad.id, { views: newViewsStr, viewsCount: newCount }).catch(e => console.warn('Mongo view sync failed', e));
+    } else {
+      setSelectedAd(ad);
+    }
+    setCurrentView('detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle Like
-  const handleLikeAd = (adId) => {
-    setAds((prev) =>
-      prev.map((ad) => {
-        if (ad.id === adId) {
-          const updated = { ...ad, likes: ad.likes + 1 };
-          updateAdInDb(adId, { likes: updated.likes }).catch(e => console.warn('Mongo like sync', e));
-          if (selectedAd && selectedAd.id === adId) {
-            setSelectedAd(updated);
-          }
-          return updated;
+  // Toggle Save ad (Bookmark) & Persist to Local & MongoDB
+  const handleToggleSave = (adId) => {
+    let targetUpdated = null;
+    const updated = ads.map((ad) => {
+      if (ad.id === adId) {
+        const nextSaved = !ad.isSaved;
+        targetUpdated = { ...ad, isSaved: nextSaved };
+        updateAdInDb(adId, { isSaved: nextSaved }).catch(e => console.warn('Mongo save sync', e));
+        showToast(nextSaved ? 'Ad saved to bookmarks! (දැන්වීම Bookmark කරන ලදී)' : 'Ad removed from bookmarks.');
+        return targetUpdated;
+      }
+      return ad;
+    });
+
+    updateAdsAndPersist(updated);
+    if (selectedAd && selectedAd.id === adId && targetUpdated) {
+      setSelectedAd(targetUpdated);
+    }
+  };
+
+  // Handle Like ad (+1 / -1) & Persist to Local & MongoDB
+  const handleLikeAd = (adId, delta = 1) => {
+    let targetUpdated = null;
+    const updated = ads.map((ad) => {
+      if (ad.id === adId) {
+        const currentLikes = Number(ad.likes) || 0;
+        const newLikes = Math.max(0, currentLikes + delta);
+        targetUpdated = { 
+          ...ad, 
+          likes: newLikes,
+          likesDisplay: `${newLikes} Likes`
+        };
+        updateAdInDb(adId, { likes: newLikes, likesDisplay: `${newLikes} Likes` }).catch(e => console.warn('Mongo like sync', e));
+        return targetUpdated;
+      }
+      return ad;
+    });
+
+    updateAdsAndPersist(updated);
+    if (selectedAd && selectedAd.id === adId && targetUpdated) {
+      setSelectedAd(targetUpdated);
+    }
+  };
+
+  // Handle package activation request from User Dashboard (wallet purchase)
+  const handleSubmitPackageRequest = (requestData) => {
+    const newRequest = {
+      id: `pkg-req-${Date.now()}`,
+      requestedAt: new Date().toISOString(),
+      status: 'Pending Admin Review',
+      ...requestData
+    };
+    const currentRequests = siteConfig.packageRequests || [];
+    const updatedRequests = [newRequest, ...currentRequests];
+    const updatedConfig = {
+      ...siteConfig,
+      packageRequests: updatedRequests
+    };
+    handleUpdateSiteConfig(updatedConfig);
+    showToast(`පැකේජ ඉල්ලීම (${requestData.packageName}) Admin වෙත සාර්ථකව යොමු විය!`);
+  };
+
+  // Admin approves package request
+  const handleApprovePackageRequest = (requestId) => {
+    const requests = siteConfig.packageRequests || [];
+    const req = requests.find(r => r.id === requestId);
+    if (!req) return;
+
+    if (req.targetAdId) {
+      const durationDays = req.packageName === 'VIP Ad' ? 30 : req.packageName === 'Super Ad' ? 30 : 14;
+      const expiryIso = calculateExpiryDate(durationDays);
+      let upgradedTarget = null;
+      const updatedAds = ads.map(a => {
+        if (a.id === req.targetAdId) {
+          upgradedTarget = {
+            ...a,
+            badgeType: req.packageName,
+            badgeColor: req.packageName === 'VIP Ad' ? 'red' : req.packageName === 'Super Ad' ? 'gold' : 'blue',
+            status: 'Approved',
+            isApproved: true,
+            isActive: true,
+            isExpired: false,
+            expiresAt: expiryIso,
+            validityDays: durationDays,
+            packageUpgradeRequested: null,
+            packagePaidWithCredits: true,
+            paymentStatus: 'Paid via Wallet (Verified)'
+          };
+          return upgradedTarget;
         }
-        return ad;
-      })
+        return a;
+      });
+      updateAdsAndPersist(updatedAds);
+      if (upgradedTarget) {
+        updateAdInDb(upgradedTarget.id, upgradedTarget).catch(err => console.warn('Mongo package upgrade sync', err));
+      }
+    }
+
+    const updatedRequests = requests.map(r => 
+      r.id === requestId 
+        ? { ...r, status: 'Approved', approvedAt: new Date().toISOString() } 
+        : r
     );
+    handleUpdateSiteConfig({
+      ...siteConfig,
+      packageRequests: updatedRequests
+    });
+    showToast(`Package "${req.packageName}" approved & activated! (පැකේජය සක්‍රීය කරන ලදී)`);
+  };
+
+  // Admin rejects package request & refunds wallet
+  const handleRejectPackageRequest = (requestId, reason = '') => {
+    const requests = siteConfig.packageRequests || [];
+    const req = requests.find(r => r.id === requestId);
+    if (!req) return;
+
+    if (req.userId && req.packageCost) {
+      handleAdjustUserCredits(req.userId, req.packageCost, `Refund: Rejected ${req.packageName} request. Reason: ${reason || 'Admin rejected'}`, 'add');
+    }
+
+    if (req.targetAdId) {
+      let clearedTarget = null;
+      const updatedAds = ads.map(a => {
+        if (a.id === req.targetAdId) {
+          clearedTarget = {
+            ...a,
+            packageUpgradeRequested: null
+          };
+          return clearedTarget;
+        }
+        return a;
+      });
+      updateAdsAndPersist(updatedAds);
+      if (clearedTarget) {
+        updateAdInDb(clearedTarget.id, clearedTarget).catch(err => console.warn('Mongo clear package request', err));
+      }
+    }
+
+    const updatedRequests = requests.map(r => 
+      r.id === requestId 
+        ? { ...r, status: 'Rejected', rejectionReason: reason, rejectedAt: new Date().toISOString() } 
+        : r
+    );
+    handleUpdateSiteConfig({
+      ...siteConfig,
+      packageRequests: updatedRequests
+    });
+    showToast(`Package request rejected & Rs. ${Number(req.packageCost || 0).toLocaleString()} refunded to user wallet.`);
   };
 
   // Refresh page / state
@@ -889,6 +1044,8 @@ export default function App() {
             onDeleteAd={handleDeleteAd}
             onAddStory={handleAddStory}
             onDeleteStory={handleDeleteStory}
+            onApprovePackageRequest={handleApprovePackageRequest}
+            onRejectPackageRequest={handleRejectPackageRequest}
             onExitAdmin={handleExitAdmin}
             onShowToast={showToast}
           />
@@ -969,6 +1126,7 @@ export default function App() {
                   onUseCredits={handleUseCredits}
                   onRequestRenewal={handleRequestAdRenewal}
                   onRenewAd={handleRenewAd}
+                  onSubmitPackageRequest={handleSubmitPackageRequest}
                   onBack={() => setCurrentView('feed')}
                   onAdCreated={handleAddAd}
                   onDeleteAd={handleDeleteAd}
@@ -1105,10 +1263,7 @@ export default function App() {
                     <div className="w-full">
                       <AdCard
                         ad={topAd}
-                        onSelectAd={(ad) => {
-                          setSelectedAd(ad);
-                          setCurrentView('detail');
-                        }}
+                        onSelectAd={handleSelectAd}
                         onToggleSave={handleToggleSave}
                         onLike={handleLikeAd}
                       />
@@ -1122,10 +1277,7 @@ export default function App() {
                         <AdCard
                           key={ad.id}
                           ad={ad}
-                          onSelectAd={(ad) => {
-                            setSelectedAd(ad);
-                            setCurrentView('detail');
-                          }}
+                          onSelectAd={handleSelectAd}
                           onToggleSave={handleToggleSave}
                           onLike={handleLikeAd}
                         />

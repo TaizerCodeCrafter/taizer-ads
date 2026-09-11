@@ -76,7 +76,8 @@ export default function UserDashboard({
   currentUser = null,
   onUseCredits,
   onRequestRenewal,
-  onRenewAd
+  onRenewAd,
+  onSubmitPackageRequest
 }) {
   const { showConfirm, showAlert, showPrompt } = useDialog();
   const [activeTab, setActiveTab] = useState(initialTab); // 'my-ads' | 'new-ad' | 'recover' | 'top-up'
@@ -155,41 +156,94 @@ export default function UserDashboard({
     }
   }, [currentUser?.credits]);
 
+  // Package Purchase with Wallet Modal State
+  const [purchasingPackage, setPurchasingPackage] = useState(null); // { name, cost }
+  const [selectedTargetAdId, setSelectedTargetAdId] = useState('');
+
   const handlePayWithCredits = async (packageName, cost) => {
     if (credits < cost) {
-      showAlert({
+      await showAlert({
         title: 'Insufficient Credits',
         titleSin: 'ප්‍රමාණවත් ක්‍රෙඩිට් නොමැත',
-        message: `You need Rs. ${cost.toLocaleString()} credits to activate ${packageName}. Your current balance is Rs. ${credits.toLocaleString()}. Please contact Admin to top up your account.`,
-        messageSin: `${packageName} සක්‍රිය කිරීමට රු. ${cost.toLocaleString()} ක ක්‍රෙඩිට් අවශ්‍යයි. ඔබගේ දැනට ඇති ශේෂය රු. ${credits.toLocaleString()} කි. කරුණාකර Admin සම්බන්ධ කරගන්න.`,
+        message: `You need Rs. ${cost.toLocaleString()} credits to activate ${packageName}. Your current balance is Rs. ${credits.toLocaleString()}. Please top up your wallet or choose Bank Transfer.`,
+        messageSin: `${packageName} සක්‍රිය කිරීමට රු. ${cost.toLocaleString()} ක ක්‍රෙඩිට් අවශ්‍යයි. ඔබගේ දැනට ඇති ශේෂය රු. ${credits.toLocaleString()} කි. කරුණාකර Wallet එක Top-up කරගන්න.`,
         type: 'warning'
       });
       return;
     }
+
+    setPurchasingPackage({ name: packageName, cost });
+    setSelectedTargetAdId(userAds[0]?.id || 'new');
+  };
+
+  const handleConfirmPackagePurchase = async () => {
+    if (!purchasingPackage) return;
+    const { name: packageName, cost } = purchasingPackage;
+
+    const targetAd = userAds.find(a => a.id === selectedTargetAdId);
+    const targetTitle = targetAd ? `"${targetAd.title}"` : 'නව දැන්වීමක් සඳහා (New Ad)';
+
     const confirmed = await showConfirm({
-      title: `Activate ${packageName}`,
-      titleSin: `${packageName} සක්‍රිය කරන්න`,
-      message: `Deduct Rs. ${cost.toLocaleString()} from your wallet balance to activate ${packageName}?`,
-      messageSin: `ඔබගේ ක්‍රෙඩිට් ශේෂයෙන් රු. ${cost.toLocaleString()} ක් අඩු කර ${packageName} සක්‍රිය කිරීමට අවශ්‍යද?`,
+      title: `Confirm ${packageName} Purchase`,
+      titleSin: `${packageName} මිලදී ගැනීම තහවුරු කරන්න`,
+      message: `Deduct Rs. ${cost.toLocaleString()} from your wallet balance to activate ${packageName} for ${targetTitle} and submit request to Admin?`,
+      messageSin: `ඔබගේ Wallet ශේෂයෙන් රු. ${cost.toLocaleString()} ක් අඩු කර ${targetTitle} සඳහා ${packageName} පැකේජ ඉල්ලීම Admin වෙත යොමු කිරීමට අවශ්‍යද?`,
       type: 'info',
-      confirmText: `Confirm & Pay (රු. ${cost.toLocaleString()})`,
+      confirmText: `Pay Rs. ${cost.toLocaleString()} (තහවුරු කරන්න)`,
       cancelText: 'Cancel'
     });
-    if (confirmed) {
-      let success = true;
-      if (onUseCredits && currentUser) {
-        success = onUseCredits(currentUser.id, cost, `Activated ${packageName}`);
+
+    if (!confirmed) return;
+
+    let success = true;
+    if (onUseCredits && currentUser) {
+      success = onUseCredits(currentUser.id, cost, `Package Purchase: ${packageName} (${targetTitle})`);
+    }
+
+    if (success) {
+      setCredits(prev => Math.max(0, prev - cost));
+
+      // 1. If linked to an ad, update the ad
+      if (targetAd) {
+        const updatedAd = {
+          ...targetAd,
+          packageUpgradeRequested: packageName,
+          packagePaidWithCredits: true,
+          packagePaymentCost: cost,
+          packageRequestedAt: new Date().toISOString(),
+          paymentMethod: 'Wallet Credits',
+          paymentStatus: 'Paid via Wallet'
+        };
+        onUpdateAd && onUpdateAd(updatedAd);
       }
-      if (success) {
-        setCredits(prev => Math.max(0, prev - cost));
-        showAlert({
-          title: 'Package Activated!',
-          titleSin: 'පැකේජය සාර්ථකව සක්‍රිය විය!',
-          message: `Congratulations! ${packageName} has been activated using your wallet credits. New balance: Rs. ${Math.max(0, credits - cost).toLocaleString()}.00`,
-          messageSin: `සුභ පැතුම්! ඔබගේ ක්‍රෙඩිට් භාවිතයෙන් ${packageName} සාර්ථකව සක්‍රිය විය. නව ශේෂය: රු. ${Math.max(0, credits - cost).toLocaleString()}.00`,
-          type: 'success'
-        });
-      }
+
+      // 2. Submit formal package request to Admin
+      const newRequest = {
+        id: `pkg-req-${Date.now()}`,
+        userId: currentUser?.id || '',
+        userName: currentUser?.name || currentUser?.phone || 'Advertiser',
+        userPhone: currentUser?.phone || (targetAd?.phone || ''),
+        packageName: packageName,
+        packageCost: cost,
+        targetAdId: targetAd ? targetAd.id : null,
+        targetAdTitle: targetAd ? targetAd.title : 'New Ad / Assignment on Post',
+        targetAdImage: targetAd ? targetAd.image : '',
+        paymentMethod: 'Wallet Credits',
+        paymentStatus: 'Paid via Wallet (Verified)',
+        status: 'Pending Admin Review',
+        requestedAt: new Date().toISOString()
+      };
+
+      onSubmitPackageRequest && onSubmitPackageRequest(newRequest);
+      setPurchasingPackage(null);
+
+      await showAlert({
+        title: 'Package Request Submitted to Admin!',
+        titleSin: 'පැකේජ ඉල්ලීම Admin වෙත යොමු කරන ලදී!',
+        message: `Rs. ${cost.toLocaleString()} has been deducted from your wallet. Your request for ${packageName} has been sent to Admin. Once approved, your ad package will be active immediately.`,
+        messageSin: `ඔබගේ Wallet ශේෂයෙන් රු. ${cost.toLocaleString()} ක් සාර්ථකව අඩු විය. ඔබගේ ${packageName} ඉල්ලීම Admin වෙත යොමු විය! Admin විසින් එය සක්‍රීය කළ පසු වෙබ් අඩවියේ ප්‍රදර්ශනය වේ.`,
+        type: 'success'
+      });
     }
   };
 
@@ -1074,19 +1128,32 @@ export default function UserDashboard({
                           </span>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between text-[11px] text-gray-500 bg-gray-50 px-2.5 py-1 rounded border border-gray-100">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-gray-400" />
-                            <span>Valid until: <strong className="text-gray-700">{validity.formattedExpiry}</strong></span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenRenewalModal(ad)}
-                            className="text-[#f03a5f] hover:underline font-bold text-[10px] flex items-center gap-0.5 cursor-pointer"
-                          >
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            <span>Extend (+Days)</span>
-                          </button>
+                        <div className="space-y-1.5">
+                          {ad.packageUpgradeRequested && (
+                            <div className="bg-amber-50 border border-amber-300 rounded-lg p-2 flex items-center justify-between text-xs text-amber-900">
+                              <span className="font-bold flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                                <span>Upgrade Request: <strong>{ad.packageUpgradeRequested}</strong> (Paid via Wallet)</span>
+                              </span>
+                              <span className="text-[10px] font-black bg-amber-200 text-amber-900 px-2 py-0.5 rounded">
+                                In Review
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-[11px] text-gray-500 bg-gray-50 px-2.5 py-1 rounded border border-gray-100">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-gray-400" />
+                              <span>Valid until: <strong className="text-gray-700">{validity.formattedExpiry}</strong></span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenRenewalModal(ad)}
+                              className="text-[#f03a5f] hover:underline font-bold text-[10px] flex items-center gap-0.5 cursor-pointer"
+                            >
+                              <RefreshCw className="w-2.5 h-2.5" />
+                              <span>Extend (+Days)</span>
+                            </button>
+                          </div>
                         </div>
                       )}
 
@@ -2262,6 +2329,159 @@ export default function UserDashboard({
                   <span>Send Slip via WhatsApp</span>
                 </a>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wallet Package Activation & Target Ad Selection Modal */}
+      {purchasingPackage && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-gray-200 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] text-white px-5 py-4 flex items-center justify-between border-b border-gray-800">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-white">
+                    {purchasingPackage.name} Activate via Wallet
+                  </h3>
+                  <p className="text-[11px] text-gray-300">
+                    පැකේජය සක්‍රීය කිරීම සහ Admin වෙත යොමු කිරීම
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setPurchasingPackage(null)}
+                className="p-1 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs text-gray-700 max-h-[75vh] overflow-y-auto">
+              {/* Package & Wallet Summary Card */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] text-emerald-800 font-bold block uppercase tracking-wider">Package Fee</span>
+                  <span className="text-xl font-black text-emerald-700">Rs. {purchasingPackage.cost.toLocaleString()}.00</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[11px] text-gray-600 block">Current Wallet</span>
+                  <span className="text-sm font-bold text-gray-900">Rs. {Number(credits || 0).toLocaleString()}.00</span>
+                  <span className="text-[10px] text-emerald-600 block">Remaining: Rs. {Math.max(0, credits - purchasingPackage.cost).toLocaleString()}.00</span>
+                </div>
+              </div>
+
+              {/* Select Advertisement */}
+              <div className="space-y-2">
+                <label className="font-bold text-gray-900 block text-xs">
+                  Select Advertisement to Apply Package (පැකේජය යෙදිය යුතු දැන්වීම තෝරන්න):
+                </label>
+
+                {userAds.length > 0 ? (
+                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                    {userAds.map((ad) => (
+                      <label 
+                        key={ad.id}
+                        className={`flex items-center space-x-3 p-2.5 rounded-xl border-2 transition cursor-pointer ${
+                          selectedTargetAdId === ad.id 
+                            ? 'border-[#f03a5f] bg-red-50/50 shadow-xs' 
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="targetAdRadio"
+                          value={ad.id}
+                          checked={selectedTargetAdId === ad.id}
+                          onChange={() => setSelectedTargetAdId(ad.id)}
+                          className="w-4 h-4 text-[#f03a5f] focus:ring-0 cursor-pointer"
+                        />
+                        <img
+                          src={ad.image}
+                          alt=""
+                          className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-xs text-gray-900 truncate">{ad.title}</p>
+                          <div className="flex items-center space-x-2 text-[10px] text-gray-500 mt-0.5">
+                            <span>Ad #{ad.id}</span>
+                            <span>•</span>
+                            <span className="bg-gray-100 text-gray-700 px-1.5 py-0.2 rounded font-semibold">
+                              {ad.badgeType || 'Normal Ad'}
+                            </span>
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+
+                    <label 
+                      className={`flex items-center space-x-3 p-2.5 rounded-xl border-2 transition cursor-pointer ${
+                        selectedTargetAdId === 'new' 
+                          ? 'border-[#f03a5f] bg-red-50/50 shadow-xs' 
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="targetAdRadio"
+                        value="new"
+                        checked={selectedTargetAdId === 'new'}
+                        onChange={() => setSelectedTargetAdId('new')}
+                        className="w-4 h-4 text-[#f03a5f] focus:ring-0 cursor-pointer"
+                      />
+                      <div className="w-12 h-12 rounded-lg bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center text-gray-500 shrink-0 font-bold text-lg">
+                        +
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-xs text-gray-900">Apply on Next New Ad (නව දැන්වීමක් සඳහා)</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">
+                          Purchase package now and assign when posting your next ad.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-900 space-y-1">
+                    <p className="font-bold">ඔබ සතුව දැනට දැන්වීම් නොමැත (No ads found)</p>
+                    <p className="text-[11px] text-blue-700 leading-relaxed">
+                      මෙම පැකේජය මිලදී ගත් පසු Admin වෙත ඉල්ලීම යොමු වන අතර ඔබ අලුතින් පළ කරන මීළඟ දැන්වීම සඳහා මෙය භාවිත කළ හැක.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Instructions Box */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-[11px] text-gray-600 space-y-1 leading-relaxed">
+                <p className="font-bold text-gray-800">ක්‍රියාවලිය (Process):</p>
+                <p>1. Confirm කළ සැණින් Wallet ශේෂයෙන් මුදල අඩු වේ.</p>
+                <p>2. ඉල්ලීම Admin Panel එකෙහි Package Requests Queue එකට සජීවීව යොමු වේ.</p>
+                <p>3. Admin විසින් තහවුරු කළ සැණින් ඔබගේ දැන්වීම {purchasingPackage.name} ලෙස වෙබ් අඩවියේ ප්‍රදර්ශනය වේ.</p>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setPurchasingPackage(null)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancel (අවලංගු කරන්න)
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmPackagePurchase}
+                className="px-5 py-2.5 bg-[#16a34a] hover:bg-[#15803d] text-white rounded-xl text-xs font-black shadow-md transition flex items-center space-x-1.5 active:scale-95 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Confirm & Pay Rs. {purchasingPackage.cost.toLocaleString()}</span>
+              </button>
             </div>
           </div>
         </div>
