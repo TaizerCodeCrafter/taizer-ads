@@ -129,6 +129,8 @@ export default function AdminPanel({
   const [contactConfig, setContactConfig] = useState(siteConfig.contact);
   const [agentsList, setAgentsList] = useState(siteConfig.agents);
   const [complaintsList, setComplaintsList] = useState(siteConfig.complaints || []);
+  const [inspectingSlipAd, setInspectingSlipAd] = useState(null);
+  const [slipValidityDays, setSlipValidityDays] = useState(5);
 
   // Universal Image File Upload Handler (Auto-compresses large device files to Base64 data URL)
   const handleFileUploadAsDataUrl = (file, callback) => {
@@ -2005,6 +2007,45 @@ export default function AdminPanel({
                             {ad.location || 'Colombo'} • {ad.price} • Phone: {ad.phone}
                           </p>
 
+                          {/* Payment & Bank Slip Info Row */}
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
+                              ad.paymentStatus === 'Verified' || ad.paymentStatus === 'Paid via Wallet'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                : ad.paymentStatus === 'Rejected'
+                                ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            }`}>
+                              <CreditCard className="w-3 h-3" />
+                              <span>
+                                {ad.paymentMethod || 'Bank Transfer'}: {ad.paymentStatus || 'Pending Verification'} ({ad.price || `Rs. ${ad.paymentAmount || 1500}`})
+                              </span>
+                            </span>
+
+                            {ad.paymentSlip && (
+                              <button
+                                type="button"
+                                onClick={() => setInspectingSlipAd(ad)}
+                                className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-400 text-[10px] font-black px-2.5 py-1 rounded-lg flex items-center space-x-1.5 transition cursor-pointer shadow-sm animate-pulse"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>📄 View Payment Slip (රිසිට්පත බලන්න)</span>
+                              </button>
+                            )}
+
+                            {ad.paymentRef && (
+                              <span className="text-[10px] text-gray-300 bg-gray-900 border border-gray-700 px-1.5 py-0.5 rounded">
+                                Ref: {ad.paymentRef}
+                              </span>
+                            )}
+
+                            {ad.rejectionReason && (
+                              <span className="text-[10px] text-red-300 bg-red-950/60 border border-red-800 px-1.5 py-0.5 rounded">
+                                Reason: {ad.rejectionReason}
+                              </span>
+                            )}
+                          </div>
+
                           {validity.isExpired && !isFake && (
                             <p className="text-[11px] text-rose-400 font-semibold flex items-center space-x-1">
                               <span>⚠️ වලංගු කාලය අවසන් වී ඇති බැවින් Public Feed එකෙන් ඉවත් කර ඇත. නැවත සක්‍රීය කිරීමට +Days ලබා දෙන්න.</span>
@@ -2096,6 +2137,30 @@ export default function AdminPanel({
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               <span>Approve ({valInfo.days}d • {valInfo.formattedExpiry})</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const reason = await showPrompt({
+                                  title: 'Reject Advertisement',
+                                  titleSin: 'දැන්වීම ප්‍රතික්ෂේප කිරීම',
+                                  message: 'Enter reason for rejecting this ad / payment slip:',
+                                  messageSin: 'දැන්වීම හෝ රිසිට්පත ප්‍රතික්ෂේප කිරීමට හේතුව ඇතුළත් කරන්න:',
+                                  defaultValue: 'Invalid or unclear bank payment slip',
+                                  placeholder: 'e.g. Slip is unreadable / incorrect deposit amount',
+                                  confirmText: 'Reject Ad',
+                                  cancelText: 'Cancel'
+                                });
+                                if (reason) {
+                                  onRejectAd && onRejectAd(ad.id, reason);
+                                }
+                              }}
+                              className="bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition cursor-pointer"
+                              title="Reject ad and payment slip"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Reject</span>
                             </button>
                           </div>
                         ) : (
@@ -6952,6 +7017,153 @@ export default function AdminPanel({
               >
                 {getAdValidity(extensionModalAd).isExpired ? '✓ Re-activate Ad Now' : '✓ Extend Expiration'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Slip Inspection Modal */}
+      {inspectingSlipAd && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#1e293b] border border-gray-700 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
+            <div className="flex items-center justify-between p-4 border-b border-gray-800 bg-[#0f172a]">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-5 h-5 text-[#f03a5f]" />
+                <div>
+                  <h3 className="font-extrabold text-sm text-white">
+                    Bank Payment Slip Verification
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Ad #{inspectingSlipAd.id} • {inspectingSlipAd.badgeType}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingSlipAd(null)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-4 flex-1">
+              {/* Slip Image Box */}
+              <div className="bg-[#0b1329] border border-gray-800 rounded-xl p-3 flex items-center justify-center max-h-80 overflow-hidden">
+                <img
+                  src={inspectingSlipAd.paymentSlip}
+                  alt="Bank Payment Slip"
+                  className="max-h-72 w-auto object-contain rounded-lg shadow-md"
+                />
+              </div>
+
+              {/* Transaction & Ad Summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
+                  <span className="text-[10px] text-gray-400 block">Ad Title</span>
+                  <strong className="text-white truncate block">{inspectingSlipAd.title}</strong>
+                </div>
+
+                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
+                  <span className="text-[10px] text-gray-400 block">User Contact</span>
+                  <strong className="text-amber-400 block">{inspectingSlipAd.phone}</strong>
+                </div>
+
+                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
+                  <span className="text-[10px] text-gray-400 block">Expected Amount</span>
+                  <strong className="text-green-400 block font-mono text-sm">
+                    {inspectingSlipAd.price || `Rs. ${inspectingSlipAd.paymentAmount || 1500}`}
+                  </strong>
+                </div>
+
+                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
+                  <span className="text-[10px] text-gray-400 block">Payment Method</span>
+                  <strong className="text-blue-400 block">{inspectingSlipAd.paymentMethod || 'Bank Transfer'}</strong>
+                </div>
+
+                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
+                  <span className="text-[10px] text-gray-400 block">Bank Ref / Depositor</span>
+                  <strong className="text-gray-200 block">{inspectingSlipAd.paymentRef || 'Not specified'}</strong>
+                </div>
+
+                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
+                  <span className="text-[10px] text-gray-400 block">Submitted At</span>
+                  <span className="text-gray-400 text-[11px] block">
+                    {new Date(inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt).toLocaleString('en-GB')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Validity Days Picker for Approval */}
+              <div className="bg-gray-900 border border-gray-800 p-3 rounded-xl space-y-2">
+                <span className="text-xs font-bold text-gray-300 block">
+                  Select Approval Validity Period (වලංගු කාලය තෝරන්න):
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[1, 3, 5, 7, 10, 15, 30].map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setSlipValidityDays(d)}
+                      className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                        slipValidityDays === d
+                          ? 'bg-[#f03a5f] text-white shadow-xs'
+                          : 'bg-gray-800 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {d} Days
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-3.5 border-t border-gray-800 bg-[#0f172a] flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  const reason = await showPrompt({
+                    title: 'Reject Payment Slip',
+                    titleSin: 'රිසිට්පත ප්‍රතික්ෂේප කිරීම',
+                    message: 'Enter reason for rejecting this payment slip:',
+                    messageSin: 'රිසිට්පත ප්‍රතික්ෂේප කිරීමට හේතුව ඇතුළත් කරන්න:',
+                    defaultValue: 'Invalid or unclear bank payment slip',
+                    placeholder: 'e.g. Slip is unreadable / incorrect deposit amount',
+                    confirmText: 'Reject Slip',
+                    cancelText: 'Cancel'
+                  });
+                  if (reason) {
+                    onRejectAd && onRejectAd(inspectingSlipAd.id, reason);
+                    setInspectingSlipAd(null);
+                  }
+                }}
+                className="px-4 py-2 bg-red-950/70 hover:bg-red-900 text-red-300 border border-red-800 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
+              >
+                <XCircle className="w-4 h-4" />
+                <span>Reject Slip / Invalid (ප්‍රතික්ෂේප කරන්න)</span>
+              </button>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setInspectingSlipAd(null)}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onApproveAd && onApproveAd(inspectingSlipAd.id, slipValidityDays);
+                    setInspectingSlipAd(null);
+                  }}
+                  className="px-5 py-2 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-extrabold shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>✓ Verify Payment & Approve Ad ({slipValidityDays} Days)</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -20,7 +20,16 @@ const AdSchema = new mongoose.Schema(
     likes: { type: Number, default: 0 },
     views: { type: String, default: '0 Views' },
     postedTime: { type: String, default: 'Just now' },
-    status: { type: String, default: 'Pending Approval' }, // 'Pending Approval' | 'Approved' | 'Fake Ad'
+    status: { type: String, default: 'Pending Approval' }, // 'Pending Approval' | 'Approved' | 'Fake Ad' | 'Rejected'
+    isApproved: { type: Boolean, default: false },
+    paymentSlip: { type: String, default: '' },
+    paymentMethod: { type: String, default: 'Bank Transfer' }, // 'Bank Transfer' | 'Wallet Credits' | 'Direct'
+    paymentStatus: { type: String, default: 'Pending Verification' }, // 'Pending Verification' | 'Verified' | 'Paid via Wallet' | 'Rejected'
+    paymentAmount: { type: Number, default: 0 },
+    paymentRef: { type: String, default: '' },
+    rejectionReason: { type: String, default: '' },
+    submittedAt: { type: Date, default: Date.now },
+    approvedAt: { type: Date },
     isFake: { type: Boolean, default: false },
     expiryDate: { type: String, default: '' },
     autoExpireDays: { type: Number, default: 5 },

@@ -28,10 +28,41 @@ import {
   CircleDot,
   AlertCircle,
   RefreshCw,
-  Calendar
+  Calendar,
+  XCircle,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useDialog } from '../context/DialogContext.jsx';
 import { getAdValidity } from '../utils/adValidity.js';
+
+// Client-side image compressor for bank payment slips (keeps size < 800KB for fast MongoDB storage)
+const compressImageFile = (file, maxWidth = 1200, quality = 0.75) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
 
 export default function UserDashboard({ 
   onBack, 
@@ -96,6 +127,21 @@ export default function UserDashboard({
   const [availableTelegram, setAvailableTelegram] = useState(true);
   const [availableImo, setAvailableImo] = useState(false);
   const [availableViber, setAvailableViber] = useState(false);
+
+  // 2-Step Ad Creation State
+  const [adFormStep, setAdFormStep] = useState(1); // 1 = Details, 2 = Payment & Slip
+  const [adPaymentMethod, setAdPaymentMethod] = useState('bank'); // 'bank' | 'credits'
+  const [adPaymentSlip, setAdPaymentSlip] = useState('');
+  const [adPaymentRef, setAdPaymentRef] = useState('');
+  const [isCompressingSlip, setIsCompressingSlip] = useState(false);
+  const [viewingSlipUrl, setViewingSlipUrl] = useState(null);
+
+  const getPackagePrice = (pkgType) => {
+    if (pkgType === 'VIP Ad') return vipPrice || 10000;
+    if (pkgType === 'Super Ad') return superPrice || 1500;
+    if (pkgType === 'NRA Ad') return 1000;
+    return normalPrice || 700;
+  };
 
   // Top up state
   const [credits, setCredits] = useState(currentUser?.credits ?? 0);
@@ -363,9 +409,31 @@ export default function UserDashboard({
     onShowToast && onShowToast('දැන්වීමේ වෙනස්කම් සාර්ථකව සුරකින ලදී! (Ad updated successfully!)');
   };
 
-  // Form Submit: Creates ad with "Pending Approval"
-  const handleFormSubmit = async (e) => {
-    e.preventDefault();
+  // Handle Slip Upload in Step 2 with client-side compression
+  const handleSlipUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsCompressingSlip(true);
+      const compressed = await compressImageFile(file, 1200, 0.75);
+      setAdPaymentSlip(compressed);
+      setIsCompressingSlip(false);
+      onShowToast && onShowToast('Bank slip uploaded successfully!');
+    } catch (err) {
+      setIsCompressingSlip(false);
+      console.error('Error compressing slip:', err);
+      showAlert({
+        title: 'Upload Error',
+        titleSin: 'රිසිට්පත Upload කිරීමේ දෝෂයකි',
+        message: 'Could not process the uploaded image. Please try another image.',
+        type: 'danger'
+      });
+    }
+  };
+
+  // Step 1: Validate Details and Proceed to Step 2 (Payment)
+  const handleProceedToPayment = async (e) => {
+    e?.preventDefault();
     if (!title.trim()) {
       await showAlert({
         title: 'Ad Title Required',
@@ -398,6 +466,74 @@ export default function UserDashboard({
     }
 
     let cleanPhoneInput = (phone || '').toString().trim().replace(/[^0-9]/g, '');
+    if (!cleanPhoneInput || cleanPhoneInput.length < 9) {
+      await showAlert({
+        title: 'Valid Phone Required',
+        titleSin: 'වලංගු දුරකථන අංකයක් අවශ්‍යයි',
+        message: 'Please enter a valid phone number so customers can contact you.',
+        messageSin: 'කරුණාකර ඔබගේ වලංගු දුරකථන අංකයක් ඇතුළත් කරන්න.',
+        type: 'warning'
+      });
+      return;
+    }
+
+    const cost = getPackagePrice(type);
+    if (credits >= cost) {
+      setAdPaymentMethod('credits');
+    } else {
+      setAdPaymentMethod('bank');
+    }
+
+    setAdFormStep(2);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Step 2: Final Submit of Ad and Payment Slip
+  const handleFinalSubmitAd = async (e) => {
+    e?.preventDefault();
+    const cost = getPackagePrice(type);
+
+    if (adPaymentMethod === 'bank') {
+      if (!adPaymentSlip) {
+        await showAlert({
+          title: 'Payment Slip Required',
+          titleSin: 'ගෙවීම් රිසිට්පත (Bank Slip) අවශ්‍යයි',
+          message: 'Please upload a photo of your bank deposit or online transfer slip to continue.',
+          messageSin: 'කරුණාකර ඔබ ගෙවූ බැංකු රිසිට්පතේ ඡායාරූපය (Bank Slip / Screenshot) Upload කරන්න.',
+          type: 'warning'
+        });
+        return;
+      }
+    } else if (adPaymentMethod === 'credits') {
+      if (credits < cost) {
+        await showAlert({
+          title: 'Insufficient Credits',
+          titleSin: 'ක්‍රෙඩිට් ශේෂය ප්‍රමාණවත් නොවේ',
+          message: `You need Rs. ${cost.toLocaleString()} credits to activate ${type}. Current balance: Rs. ${credits.toLocaleString()}. Please choose Bank Transfer or top up your wallet.`,
+          messageSin: `දැන්වීම පළ කිරීමට රු. ${cost.toLocaleString()} ක ක්‍රෙඩිට් අවශ්‍යයි. කරුණාකර Bank Transfer මගින් ගෙවන්න.`,
+          type: 'warning'
+        });
+        return;
+      }
+
+      const confirmed = await showConfirm({
+        title: 'Confirm Payment via Wallet',
+        titleSin: 'ක්‍රෙඩිට් මගින් ගෙවීම තහවුරු කරන්න',
+        message: `Deduct Rs. ${cost.toLocaleString()} from your wallet balance to submit ${type}?`,
+        messageSin: `ඔබගේ Wallet ශේෂයෙන් රු. ${cost.toLocaleString()} ක් අඩු කර ${type} දැන්වීම පළ කිරීමට අවශ්‍යද?`,
+        type: 'info',
+        confirmText: `Pay Rs. ${cost.toLocaleString()}`,
+        cancelText: 'Cancel'
+      });
+      if (!confirmed) return;
+
+      if (onUseCredits && currentUser) {
+        onUseCredits(cost, `Ad Post: ${type} - "${title.trim()}"`);
+      }
+      setCredits(prev => Math.max(0, prev - cost));
+    }
+
+    let cleanPhoneInput = (phone || '').toString().trim().replace(/[^0-9]/g, '');
     if (cleanPhoneInput.startsWith('0')) {
       cleanPhoneInput = cleanPhoneInput.substring(1);
     }
@@ -414,7 +550,7 @@ export default function UserDashboard({
       postedTime: 'Just now',
       location: location || 'Colombo',
       categoryLabel: category,
-      price: price ? `Rs. ${price}` : 'Rs. 1,500.00',
+      price: price ? `Rs. ${price}` : `Rs. ${cost.toLocaleString()}.00`,
       isTopBanner: false,
       cashBack: true,
       realImage: true,
@@ -432,7 +568,7 @@ export default function UserDashboard({
       packages: [
         `⭐ ${title.toUpperCase()} ⭐`,
         `⭐ Location: ${location || 'Colombo'}`,
-        `⭐ Price: ${price ? `Rs. ${price}` : 'Rs. 1,500.00'}`,
+        `⭐ Price: ${price ? `Rs. ${price}` : `Rs. ${cost.toLocaleString()}.00`}`,
         `⭐ 24 Hours Service Line Available`,
         "",
         `✨ DESCRIPTION & PACKAGES ✨`,
@@ -444,12 +580,26 @@ export default function UserDashboard({
       userId: currentUser?.id || '',
       userName: currentUser?.name || currentUser?.phone || 'Advertiser',
       userPhone: currentUser?.phone || fullPhone,
-      status: 'Pending Approval', // Initially Pending Approval as requested by user
+      status: 'Pending Approval',
+      isApproved: false,
+      paymentMethod: adPaymentMethod === 'credits' ? 'Wallet Credits' : 'Bank Transfer',
+      paymentStatus: adPaymentMethod === 'credits' ? 'Paid via Wallet' : 'Pending Verification',
+      paymentAmount: cost,
+      paymentSlip: adPaymentMethod === 'credits' ? '' : adPaymentSlip,
+      paymentRef: adPaymentRef.trim(),
+      submittedAt: new Date().toISOString(),
       isActive: true
     };
 
     onAdCreated(newAd);
-    onShowToast && onShowToast('දැන්වීම Admin Approval සඳහා සාර්ථකව යොමු කරන ලදී!');
+
+    await showAlert({
+      title: 'Ad & Payment Slip Submitted',
+      titleSin: 'දැන්වීම සහ රිසිට්පත යොමු කරන ලදී',
+      message: 'Your advertisement and payment slip have been submitted to the Admin. Once verified and approved, your ad will go live on the website.',
+      messageSin: 'ඔබගේ දැන්වීම සහ ගෙවීම් රිසිට්පත Admin වෙත සාර්ථකව යොමු විය! Admin විසින් රිසිට්පත පරීක්ෂා කර අනුමත කළ පසු දැන්වීම වෙබ් අඩවියේ සජීවීව පළ වේ.',
+      type: 'success'
+    });
 
     // Reset Form & Switch to My Ads tab
     setTitle('');
@@ -458,6 +608,9 @@ export default function UserDashboard({
     setDescription('');
     setSelectedFile(null);
     setImagePreview('');
+    setAdPaymentSlip('');
+    setAdPaymentRef('');
+    setAdFormStep(1);
     setActiveTab('my-ads');
   };
 
@@ -507,23 +660,21 @@ export default function UserDashboard({
     }
   };
 
-  // Toggle Inactive / Active
+  // Toggle Inactive / Active (Only allowed on Approved ads)
   const handleToggleActive = (ad) => {
+    if (ad.status !== 'Approved' || ad.isApproved === false) {
+      showAlert({
+        title: 'Ad Not Approved',
+        titleSin: 'දැන්වීම තවමත් අනුමත වී නැත',
+        message: 'This ad is pending Admin review and payment slip verification. You can only pause or activate approved ads.',
+        messageSin: 'මෙම දැන්වීම තවමත් Admin විසින් අනුමත කර නොමැත. අනුමත වූ පසු ඔබට මෙය Inactive/Active කළ හැක.',
+        type: 'warning'
+      });
+      return;
+    }
     const updated = { ...ad, isActive: !ad.isActive };
     onUpdateAd && onUpdateAd(updated);
     onShowToast && onShowToast(`Ad marked as ${updated.isActive ? 'Active' : 'Inactive'}.`);
-  };
-
-  // Admin approval simulation
-  const handleSimulateApproval = (ad) => {
-    const newStatus = ad.status === 'Approved' ? 'Pending Approval' : 'Approved';
-    const updated = { ...ad, status: newStatus };
-    onUpdateAd && onUpdateAd(updated);
-    onShowToast && onShowToast(
-      newStatus === 'Approved' 
-        ? 'Admin අනුමැතිය ලැබුණි! Ad is now Live on site.' 
-        : 'Ad marked as Pending Approval.'
-    );
   };
 
   // Handle republish / upgrade submit
@@ -975,13 +1126,16 @@ export default function UserDashboard({
                         <button
                           type="button"
                           onClick={() => handleToggleActive(ad)}
+                          disabled={isPending || ad.status === 'Rejected'}
                           className={`font-bold py-1.5 px-2 rounded text-xs transition text-center shadow-xs text-white ${
-                            ad.isActive !== false 
+                            isPending || ad.status === 'Rejected'
+                              ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                              : ad.isActive !== false 
                               ? 'bg-[#d97706] hover:bg-[#b45309]' 
                               : 'bg-gray-500 hover:bg-gray-600'
                           }`}
                         >
-                          {ad.isActive !== false ? 'Inactive' : 'Activate'}
+                          {isPending ? '⏳ In Review' : ad.status === 'Rejected' ? 'Rejected' : ad.isActive !== false ? 'Inactive' : 'Activate'}
                         </button>
                       </div>
 
@@ -1096,22 +1250,72 @@ export default function UserDashboard({
                         )}
                       </div>
 
-                      {/* Admin Approval Simulator Tool */}
-                      <div className="bg-amber-50 border border-amber-200 p-2 rounded flex items-center justify-between text-[10px]">
-                        <span className="text-amber-900 font-semibold truncate mr-2">
-                          {isPending ? '⏳ Awaiting Approval' : '✅ Live on Site'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleSimulateApproval(ad)}
-                          className={`px-2 py-1 rounded font-bold text-white transition flex-shrink-0 ${
-                            isPending 
-                              ? 'bg-green-600 hover:bg-green-700' 
-                              : 'bg-amber-600 hover:bg-amber-700'
-                          }`}
-                        >
-                          {isPending ? 'Approve' : 'Pending'}
-                        </button>
+                      {/* Ad Status & Payment Slip Information Box */}
+                      <div className={`p-3 rounded-xl border text-xs space-y-2 ${
+                        isPending 
+                          ? 'bg-amber-50/90 border-amber-200 text-amber-950' 
+                          : ad.status === 'Rejected'
+                          ? 'bg-red-50 border-red-200 text-red-950'
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold flex items-center space-x-1.5">
+                            {isPending ? (
+                              <>
+                                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Admin අනුමැතිය සහ රිසිට්පත් පරීක්ෂාව බලාපොරොත්තුවෙන්</span>
+                              </>
+                            ) : ad.status === 'Rejected' ? (
+                              <>
+                                <XCircle className="w-3.5 h-3.5 text-red-600" />
+                                <span>ප්‍රතික්ෂේපිතයි (Rejected by Admin)</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>වෙබ් අඩවියේ සජීවීව පළව ඇත (Live on Site)</span>
+                              </>
+                            )}
+                          </span>
+
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
+                            isPending
+                              ? 'bg-amber-200 text-amber-900'
+                              : ad.status === 'Rejected'
+                              ? 'bg-red-200 text-red-900'
+                              : 'bg-emerald-200 text-emerald-900'
+                          }`}>
+                            {isPending ? 'Pending' : ad.status === 'Rejected' ? 'Rejected' : 'Approved'}
+                          </span>
+                        </div>
+
+                        {/* Payment Info Row */}
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1 border-t border-dashed border-gray-200/80">
+                          <span className="text-gray-700">
+                            ගෙවීම: <strong>{ad.paymentMethod || 'Bank Transfer'}</strong> ({ad.price || `Rs. ${ad.paymentAmount || 1500}`})
+                          </span>
+
+                          {ad.paymentSlip ? (
+                            <button
+                              type="button"
+                              onClick={() => setViewingSlipUrl(ad.paymentSlip)}
+                              className="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>ගෙවූ රිසිට්පත බලන්න (View Slip)</span>
+                            </button>
+                          ) : (
+                            <span className="text-amber-800 italic text-[10px]">
+                              {ad.paymentMethod === 'Wallet Credits' ? 'Paid via Wallet' : 'No slip attached'}
+                            </span>
+                          )}
+                        </div>
+
+                        {ad.rejectionReason && (
+                          <div className="text-[11px] text-red-700 bg-red-100/70 p-2 rounded font-medium border border-red-200">
+                            <strong>ප්‍රතික්ෂේප වීමට හේතුව:</strong> {ad.rejectionReason}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1132,232 +1336,519 @@ export default function UserDashboard({
           </div>
         )}
 
-        {/* Tab Content 2: New Ad Form */}
+        {/* Tab Content 2: New Ad Form (2-Step Ad Creation Flow) */}
         {activeTab === 'new-ad' && (
           <div className="p-4 sm:p-6 space-y-5">
-            <div className="bg-[#eef6ff] border border-[#bfdbfe] rounded-lg p-3.5 text-xs text-[#1e40af] space-y-0.5 leading-relaxed">
-              <p className="font-semibold text-[#1e3a8a]">
-                දැන්වීම <strong>approve</strong> වීමෙන් පසුව නැවත <strong>edit</strong> කල නොහැක. සියලු දේ නිවැරදිව සම්පූර්ණ කර <strong>submit</strong> කරන්න.
-              </p>
-              <p className="font-medium text-[#2563eb]">
-                Ads cannot be edited after the approval. Fill everything correctly and submit.
-              </p>
+            {/* Step Progress Header */}
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setAdFormStep(1)}
+                className={`flex items-center space-x-2 transition ${adFormStep === 1 ? 'text-[#f03a5f]' : 'text-green-700 hover:underline'}`}
+              >
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                  adFormStep === 1 ? 'bg-[#f03a5f] text-white' : 'bg-green-100 text-green-700 border border-green-300'
+                }`}>
+                  {adFormStep > 1 ? '✓' : '1'}
+                </span>
+                <span>පියවර 1: දැන්වීමේ විස්තර (Ad Details)</span>
+              </button>
+
+              <div className="w-8 sm:w-16 h-0.5 bg-gray-300"></div>
+
+              <div className={`flex items-center space-x-2 ${adFormStep === 2 ? 'text-[#f03a5f]' : 'text-gray-400'}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                  adFormStep === 2 ? 'bg-[#f03a5f] text-white' : 'bg-gray-200 text-gray-600'
+                }`}>
+                  2
+                </span>
+                <span>පියවර 2: ගෙවීම සහ රිසිට්පත (Payment & Slip)</span>
+              </div>
             </div>
 
-            <form onSubmit={handleFormSubmit} className="space-y-4 text-xs text-gray-700">
-              <div>
-                <label className="block font-bold text-gray-800 mb-1.5">Image</label>
-                <div className="border border-gray-300 rounded-lg p-2 bg-white flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-gray-200 file:text-gray-800 hover:file:bg-gray-300 cursor-pointer text-gray-600"
-                  />
-                  {imagePreview && (
-                    <div className="flex items-center space-x-2">
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="w-12 h-12 object-cover rounded border border-gray-300"
-                      />
-                      <span className="text-[11px] text-green-700 font-semibold">Image selected!</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-gray-800 mb-1.5">Type</label>
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-xs focus:outline-none focus:border-[#f03a5f] bg-white font-medium"
-                >
-                  <option value="Super Ad">Super Ad (Rs. 1,500.00)</option>
-                  <option value="VIP Ad">VIP Ad (Rs. 10,000.00)</option>
-                  <option value="NRA Ad">NRA Ad (Rs. 1,000.00)</option>
-                  <option value="Normal Ad">Normal Ad (Rs. 700.00)</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-gray-800 mb-1.5">Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Title"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#f03a5f]"
-                  />
+            {adFormStep === 1 ? (
+              /* STEP 1: AD DETAILS FORM */
+              <form onSubmit={handleProceedToPayment} className="space-y-4 text-xs text-gray-700">
+                <div className="bg-[#eef6ff] border border-[#bfdbfe] rounded-lg p-3.5 text-xs text-[#1e40af] space-y-0.5 leading-relaxed">
+                  <p className="font-semibold text-[#1e3a8a]">
+                    දැන්වීම <strong>approve</strong> වීමෙන් පසුව නැවත <strong>edit</strong> කල නොහැක. සියලු දේ නිවැරදිව සම්පූර්ණ කර මීළඟ පියවරට යන්න.
+                  </p>
+                  <p className="font-medium text-[#2563eb]">
+                    Ads cannot be edited after the approval. Fill everything correctly and proceed to payment.
+                  </p>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-gray-800 mb-1.5">Category</label>
+                  <label className="block font-bold text-gray-800 mb-1.5">Image</label>
+                  <div className="border border-gray-300 rounded-lg p-2 bg-white flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-gray-200 file:text-gray-800 hover:file:bg-gray-300 cursor-pointer text-gray-600"
+                    />
+                    {imagePreview && (
+                      <div className="flex items-center space-x-2">
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="w-12 h-12 object-cover rounded border border-gray-300"
+                        />
+                        <span className="text-[11px] text-green-700 font-semibold">Image selected!</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-800 mb-1.5">Package Type (දැන්වීම් වර්ගය)</label>
                   <select
-                    required
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#f03a5f] bg-white"
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-xs focus:outline-none focus:border-[#f03a5f] bg-white font-medium"
                   >
-                    <option value="">Select Category</option>
-                    <option value="Spa Massage">Spa Massage</option>
-                    <option value="Live Cam">Live Cam</option>
-                    <option value="Girls Personal">Girls Personal</option>
-                    <option value="Boys Personal">Boys Personal</option>
-                    <option value="Sale / Rent">Sale / Rent</option>
-                    <option value="Marriage Proposal">Marriage Proposal</option>
-                    <option value="Toys & Accessories">Toys & Accessories</option>
-                    <option value="Rooms">Rooms</option>
-                    <option value="Vehicles">Vehicles</option>
+                    <option value="Super Ad">Super Ad (Rs. {superPrice.toLocaleString()}.00)</option>
+                    <option value="VIP Ad">VIP Ad (Rs. {vipPrice.toLocaleString()}.00)</option>
+                    <option value="NRA Ad">NRA Ad (Rs. 1,000.00)</option>
+                    <option value="Normal Ad">Normal Ad (Rs. {normalPrice.toLocaleString()}.00)</option>
                   </select>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-gray-800 mb-1.5">Location</label>
-                  <input
-                    type="text"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="Location (e.g. Colombo, Kandy, Gampaha)"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#f03a5f]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-gray-800 mb-1.5">Price</label>
-                  <input
-                    type="text"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    placeholder="Price (e.g. 1500.00)"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#f03a5f]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-gray-800 mb-1.5">Description</label>
-                <textarea
-                  rows={6}
-                  required
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Description"
-                  className="w-full border border-gray-300 rounded-lg p-3 text-xs focus:outline-none focus:border-[#f03a5f] leading-relaxed"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                <div className="space-y-2">
-                  <label className="block font-bold text-gray-800">Phone</label>
-                  <div className="flex items-center space-x-2">
-                    <select
-                      value={phoneCode}
-                      onChange={(e) => setPhoneCode(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-2.5 py-2 text-xs bg-gray-100 font-semibold focus:outline-none"
-                    >
-                      <option value="+94">+94</option>
-                      <option value="+1">+1</option>
-                      <option value="+44">+44</option>
-                      <option value="+971">+971</option>
-                    </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-bold text-gray-800 mb-1.5">Title</label>
                     <input
                       type="text"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-xs bg-gray-50 focus:outline-none focus:border-[#f03a5f]"
+                      required
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="Title"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#f03a5f]"
                     />
                   </div>
 
+                  <div>
+                    <label className="block font-bold text-gray-800 mb-1.5">Category</label>
+                    <select
+                      required
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#f03a5f] bg-white"
+                    >
+                      <option value="">Select Category</option>
+                      <option value="Spa Massage">Spa Massage</option>
+                      <option value="Live Cam">Live Cam</option>
+                      <option value="Girls Personal">Girls Personal</option>
+                      <option value="Boys Personal">Boys Personal</option>
+                      <option value="Sale / Rent">Sale / Rent</option>
+                      <option value="Marriage Proposal">Marriage Proposal</option>
+                      <option value="Toys & Accessories">Toys & Accessories</option>
+                      <option value="Rooms">Rooms</option>
+                      <option value="Vehicles">Vehicles</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-bold text-gray-800 mb-1.5">Location</label>
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="Location (e.g. Colombo, Kandy, Gampaha)"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#f03a5f]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-gray-800 mb-1.5">Price Display</label>
+                    <input
+                      type="text"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      placeholder="Price (e.g. 1500.00)"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#f03a5f]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-800 mb-1.5">Description</label>
+                  <textarea
+                    rows={6}
+                    required
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Description"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-xs focus:outline-none focus:border-[#f03a5f] leading-relaxed"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                  <div className="space-y-2">
+                    <label className="block font-bold text-gray-800">Contact Phone</label>
+                    <div className="flex items-center space-x-2">
+                      <select
+                        value={phoneCode}
+                        onChange={(e) => setPhoneCode(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-2.5 py-2 text-xs bg-gray-100 font-semibold focus:outline-none"
+                      >
+                        <option value="+94">+94</option>
+                        <option value="+1">+1</option>
+                        <option value="+44">+44</option>
+                        <option value="+971">+971</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-xs bg-gray-50 focus:outline-none focus:border-[#f03a5f]"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const newNum = await showPrompt({
+                          title: 'Change Contact Phone',
+                          titleSin: 'දුරකථන අංකය වෙනස් කරන්න',
+                          message: 'Enter your new contact phone number:',
+                          messageSin: 'නව දුරකථන අංකය ඇතුළත් කරන්න:',
+                          defaultValue: phone,
+                          placeholder: '0703670398',
+                          confirmText: 'Update Phone',
+                          cancelText: 'Cancel'
+                        });
+                        if (newNum && newNum.trim()) {
+                          setPhone(newNum.trim());
+                          onShowToast && onShowToast('Phone number updated.');
+                        }
+                      }}
+                      className="w-full border border-[#dc2626] text-[#dc2626] hover:bg-red-50 py-1.5 rounded-md text-xs font-semibold transition"
+                    >
+                      Change Phone
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5 pt-4 md:pt-6">
+                    <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={availableWhatsapp}
+                        onChange={(e) => setAvailableWhatsapp(e.target.checked)}
+                        className="w-4 h-4 rounded text-[#f03a5f] focus:ring-0 cursor-pointer"
+                      />
+                      <span className="text-xs font-medium text-gray-800">
+                        Phone Number Available on Whatsapp
+                      </span>
+                    </label>
+
+                    <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={availableTelegram}
+                        onChange={(e) => setAvailableTelegram(e.target.checked)}
+                        className="w-4 h-4 rounded text-[#f03a5f] focus:ring-0 cursor-pointer"
+                      />
+                      <span className="text-xs font-medium text-gray-800">
+                        Phone Number Available on Telegram
+                      </span>
+                    </label>
+
+                    <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={availableImo}
+                        onChange={(e) => setAvailableImo(e.target.checked)}
+                        className="w-4 h-4 rounded text-[#f03a5f] focus:ring-0 cursor-pointer"
+                      />
+                      <span className="text-xs font-medium text-gray-800">
+                        Phone Number Available on IMO
+                      </span>
+                    </label>
+
+                    <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={availableViber}
+                        onChange={(e) => setAvailableViber(e.target.checked)}
+                        className="w-4 h-4 rounded text-[#f03a5f] focus:ring-0 cursor-pointer"
+                      />
+                      <span className="text-xs font-medium text-gray-800">
+                        Phone Number Available on Viber
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-200 flex items-center justify-between">
+                  <span className="text-gray-500 text-[11px]">
+                    Package Cost: <strong className="text-gray-900">Rs. {getPackagePrice(type).toLocaleString()}.00</strong>
+                  </span>
+                  <button
+                    type="submit"
+                    className="bg-[#0f172a] hover:bg-black text-white text-xs md:text-sm font-bold px-7 py-2.5 rounded-lg transition shadow-sm active:scale-95 flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <span>Next: Payment & Verification (මීළඟ පියවර)</span>
+                    <ArrowLeft className="w-4 h-4 rotate-180" />
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* STEP 2: PAYMENT DETAILS & SLIP UPLOAD */
+              <div className="space-y-5 animate-in fade-in duration-200">
+                {/* Package Cost Summary Banner */}
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full">
+                      Selected Ad Package
+                    </span>
+                    <h3 className="text-base font-extrabold text-gray-900 mt-1">
+                      {type} ({title || 'Your Advertisement'})
+                    </h3>
+                    <p className="text-xs text-gray-600">
+                      Category: <strong>{category}</strong> • Location: <strong>{location || 'Colombo'}</strong>
+                    </p>
+                  </div>
+
+                  <div className="text-right self-end sm:self-center">
+                    <span className="text-[11px] text-gray-500 block">Total Amount to Pay</span>
+                    <span className="text-xl sm:text-2xl font-black text-[#dc2626]">
+                      Rs. {getPackagePrice(type).toLocaleString()}.00
+                    </span>
+                  </div>
+                </div>
+
+                {/* Payment Method Selector */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={async () => {
-                      const newNum = await showPrompt({
-                        title: 'Change Contact Phone',
-                        titleSin: 'දුරකථන අංකය වෙනස් කරන්න',
-                        message: 'Enter your new contact phone number:',
-                        messageSin: 'නව දුරකථන අංකය ඇතුළත් කරන්න:',
-                        defaultValue: phone,
-                        placeholder: '0703670398',
-                        confirmText: 'Update Phone',
-                        cancelText: 'Cancel'
-                      });
-                      if (newNum && newNum.trim()) {
-                        setPhone(newNum.trim());
-                        onShowToast && onShowToast('Phone number updated.');
-                      }
-                    }}
-                    className="w-full border border-[#dc2626] text-[#dc2626] hover:bg-red-50 py-1.5 rounded-md text-xs font-semibold transition"
+                    onClick={() => setAdPaymentMethod('bank')}
+                    className={`p-3.5 rounded-xl border text-left transition flex items-start space-x-3 cursor-pointer ${
+                      adPaymentMethod === 'bank'
+                        ? 'border-[#f03a5f] bg-pink-50/50 shadow-xs ring-1 ring-[#f03a5f]'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
                   >
-                    Change Phone
+                    <Building2 className={`w-5 h-5 mt-0.5 ${adPaymentMethod === 'bank' ? 'text-[#f03a5f]' : 'text-gray-400'}`} />
+                    <div>
+                      <h4 className="font-bold text-xs text-gray-900">Bank Transfer / Deposit</h4>
+                      <p className="text-[11px] text-gray-500 mt-0.5">බැංකු තැන්පතු හෝ Online Transfer මගින් ගෙවා Slip එක Upload කරන්න</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAdPaymentMethod('credits')}
+                    className={`p-3.5 rounded-xl border text-left transition flex items-start space-x-3 cursor-pointer ${
+                      adPaymentMethod === 'credits'
+                        ? 'border-[#f03a5f] bg-pink-50/50 shadow-xs ring-1 ring-[#f03a5f]'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <Wallet className={`w-5 h-5 mt-0.5 ${adPaymentMethod === 'credits' ? 'text-[#f03a5f]' : 'text-gray-400'}`} />
+                    <div>
+                      <h4 className="font-bold text-xs text-gray-900">Pay with Wallet Balance</h4>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        ගිණුමේ ශේෂය: <strong className="text-green-700">Rs. {Number(credits || 0).toLocaleString()}</strong>
+                      </p>
+                    </div>
                   </button>
                 </div>
 
-                <div className="space-y-2.5 pt-4 md:pt-6">
-                  <label className="flex items-center space-x-2.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={availableWhatsapp}
-                      onChange={(e) => setAvailableWhatsapp(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#f03a5f] focus:ring-0 cursor-pointer"
-                    />
-                    <span className="text-xs font-medium text-gray-800">
-                      Phone Number Available on Whatsapp
-                    </span>
-                  </label>
+                {/* Method A: Bank Transfer Details Card & Slip Upload */}
+                {adPaymentMethod === 'bank' ? (
+                  <div className="space-y-4">
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                        <span className="font-bold text-xs text-gray-900 flex items-center space-x-1.5">
+                          <Building2 className="w-4 h-4 text-[#f03a5f]" />
+                          <span>Admin Bank Account Details (මුදල් තැන්පත් කළ යුතු ගිණුම)</span>
+                        </span>
+                        <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Verified Account</span>
+                      </div>
 
-                  <label className="flex items-center space-x-2.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={availableTelegram}
-                      onChange={(e) => setAvailableTelegram(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#f03a5f] focus:ring-0 cursor-pointer"
-                    />
-                    <span className="text-xs font-medium text-gray-800">
-                      Phone Number Available on Telegram
-                    </span>
-                  </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                          <span className="text-gray-500 text-[10px] block">Bank Name (බැංකුව)</span>
+                          <strong className="text-gray-900">{bankDetails.bankName || 'Commercial Bank PLC'}</strong>
+                        </div>
 
-                  <label className="flex items-center space-x-2.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={availableImo}
-                      onChange={(e) => setAvailableImo(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#f03a5f] focus:ring-0 cursor-pointer"
-                    />
-                    <span className="text-xs font-medium text-gray-800">
-                      Phone Number Available on IMO
-                    </span>
-                  </label>
+                        <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                          <span className="text-gray-500 text-[10px] block">Account Name (ගිණුමේ නම)</span>
+                          <strong className="text-gray-900">{bankDetails.accountName || 'Taizer Ads Advertising'}</strong>
+                        </div>
 
-                  <label className="flex items-center space-x-2.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={availableViber}
-                      onChange={(e) => setAvailableViber(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#f03a5f] focus:ring-0 cursor-pointer"
-                    />
-                    <span className="text-xs font-medium text-gray-800">
-                      Phone Number Available on Viber
-                    </span>
-                  </label>
+                        <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-100 flex items-center justify-between">
+                          <div>
+                            <span className="text-gray-500 text-[10px] block">Account Number (ගිණුම් අංකය)</span>
+                            <strong className="text-gray-900 font-mono text-sm">{bankDetails.accountNumber || '8001 2345 6789'}</strong>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(bankDetails.accountNumber || '8001 2345 6789', 'Account Number')}
+                            className="text-xs text-[#f03a5f] hover:bg-pink-100 p-1.5 rounded transition cursor-pointer"
+                            title="Copy Account Number"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                          <span className="text-gray-500 text-[10px] block">Branch (ශාඛාව)</span>
+                          <strong className="text-gray-900">{bankDetails.branch || 'Colombo City Branch'}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bank Slip Upload Box */}
+                    <div className="bg-white border-2 border-dashed border-gray-300 hover:border-[#f03a5f] rounded-xl p-5 text-center transition space-y-3">
+                      <div className="flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-full bg-pink-50 flex items-center justify-center text-[#f03a5f]">
+                          <Upload className="w-6 h-6" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="font-extrabold text-sm text-gray-900">
+                          Upload Payment Receipt / Bank Slip (රිසිට්පත Upload කරන්න) *
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
+                          බැංකුවෙන් ලබාදුන් රිසිට්පතේ පැහැදිලි ඡායාරූපයක් (Slip / Screenshot) තෝරන්න. Admin විසින් මෙය පරීක්ෂා කර දැන්වීම සක්‍රීය කරනු ඇත.
+                        </p>
+                      </div>
+
+                      {isCompressingSlip ? (
+                        <div className="flex items-center justify-center space-x-2 text-xs text-amber-700 py-3">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Processing & compressing image...</span>
+                        </div>
+                      ) : adPaymentSlip ? (
+                        <div className="space-y-3 pt-2">
+                          <div className="relative inline-block border-2 border-green-500 rounded-xl overflow-hidden shadow-md max-w-xs mx-auto">
+                            <img
+                              src={adPaymentSlip}
+                              alt="Uploaded Slip"
+                              className="max-h-52 w-auto object-contain bg-gray-900"
+                            />
+                            <div className="absolute top-2 right-2 bg-green-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow">
+                              ✓ Slip Ready
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-center space-x-3">
+                            <label className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold px-3 py-1.5 rounded-lg cursor-pointer transition">
+                              Change Slip (වෙනත් ඡායාරූපයක්)
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleSlipUpload}
+                                className="hidden"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setAdPaymentSlip('')}
+                              className="text-xs text-red-600 hover:text-red-800 font-bold hover:underline cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="inline-block bg-[#f03a5f] hover:bg-[#d92348] text-white text-xs font-bold px-5 py-2.5 rounded-lg cursor-pointer transition shadow-xs active:scale-95">
+                          <span>Browse / Select Bank Slip Image</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleSlipUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+
+                      {/* Optional Bank Reference */}
+                      <div className="pt-2 max-w-sm mx-auto text-left">
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                          Bank Reference / Depositor Name (විකල්පයි / Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={adPaymentRef}
+                          onChange={(e) => setAdPaymentRef(e.target.value)}
+                          placeholder="e.g. Ref #123456 / John Perera"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#f03a5f]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Method B: Wallet Balance */
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4 shadow-xs">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                      <div>
+                        <h4 className="font-extrabold text-sm text-gray-900">Wallet Credits Balance</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">ඔබගේ Taizer Ads ගිණුමේ ඇති ක්‍රෙඩිට් ශේෂය</p>
+                      </div>
+                      <span className="text-xl font-black text-green-600">
+                        Rs. {Number(credits || 0).toLocaleString()}.00
+                      </span>
+                    </div>
+
+                    {credits >= getPackagePrice(type) ? (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-xs text-emerald-900 space-y-1.5">
+                        <div className="flex items-center space-x-2 font-bold text-emerald-800">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>ක්‍රෙඩිට් ශේෂය ප්‍රමාණවත්ය (Sufficient Balance)</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-700 leading-relaxed">
+                          මෙම දැන්වීම සඳහා රු. {getPackagePrice(type).toLocaleString()} ක් ඔබගේ Wallet ශේෂයෙන් ක්ෂණිකව අඩු කර දැන්වීම Admin වෙත යොමු කරනු ලැබේ.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-900 space-y-2">
+                        <div className="flex items-center space-x-2 font-bold text-amber-900">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>ක්‍රෙඩිට් ශේෂය ප්‍රමාණවත් නොවේ (Insufficient Credits)</span>
+                        </div>
+                        <p className="text-[11px] text-amber-800 leading-relaxed">
+                          මෙම {type} දැන්වීම සඳහා රු. {getPackagePrice(type).toLocaleString()} ක් අවශ්‍ය නමුත් ඔබ සතුව ඇත්තේ රු. {Number(credits || 0).toLocaleString()} කි. කරුණාකර "Bank Transfer / Deposit" තෝරා Slip එක Upload කරන්න.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setAdPaymentMethod('bank')}
+                          className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer"
+                        >
+                          Switch to Bank Transfer (බැංකු ගෙවීම තෝරන්න)
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Bottom Navigation Buttons for Step 2 */}
+                <div className="pt-4 border-t border-gray-200 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAdFormStep(1)}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold px-5 py-2.5 rounded-lg text-xs transition flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back to Edit Details (ආපසු)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleFinalSubmitAd}
+                    className="bg-[#16a34a] hover:bg-[#15803d] text-white font-black text-xs md:text-sm px-6 sm:px-8 py-2.5 rounded-lg transition shadow-md active:scale-95 flex items-center space-x-2 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Submit Ad & Payment Slip (Admin වෙත යොමු කරන්න)</span>
+                  </button>
                 </div>
               </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <button
-                  type="submit"
-                  className="bg-[#0f172a] hover:bg-black text-white text-xs md:text-sm font-bold px-7 py-2.5 rounded-lg transition shadow-sm active:scale-95"
-                >
-                  Create
-                </button>
-              </div>
-            </form>
+            )}
           </div>
         )}
 
@@ -2408,6 +2899,43 @@ export default function UserDashboard({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Submitted Payment Slip Viewer Modal */}
+      {viewingSlipUrl && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-3.5 border-b border-gray-200 bg-gray-50">
+              <span className="font-bold text-xs text-gray-900 flex items-center space-x-1.5">
+                <FileText className="w-4 h-4 text-[#f03a5f]" />
+                <span>Uploaded Payment Slip (ගෙවූ රිසිට්පත)</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewingSlipUrl(null)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex items-center justify-center bg-gray-950">
+              <img
+                src={viewingSlipUrl}
+                alt="Payment Slip"
+                className="max-h-[70vh] w-auto object-contain rounded-lg"
+              />
+            </div>
+            <div className="p-3 bg-gray-50 border-t border-gray-200 text-right">
+              <button
+                type="button"
+                onClick={() => setViewingSlipUrl(null)}
+                className="bg-gray-800 hover:bg-black text-white font-bold px-4 py-1.5 rounded-lg text-xs transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

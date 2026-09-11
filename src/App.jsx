@@ -537,6 +537,8 @@ export default function App() {
         approvedTarget = {
           ...a,
           status: 'Approved',
+          isApproved: true,
+          paymentStatus: 'Verified',
           isExpired: false,
           validityDays: numDays,
           approvedAt: new Date().toISOString(),
@@ -551,7 +553,7 @@ export default function App() {
     if (approvedTarget) {
       updateAdInDb(adId, approvedTarget).catch(err => console.warn('Mongo approve ad sync failed', err));
     }
-    showToast(`Ad #${adId} Approved for ${numDays} Days! Auto-expires on ${formattedDate}.`);
+    showToast(`Ad #${adId} Approved & Verified! Auto-expires on ${formattedDate}.`);
   };
 
   const handleRenewAd = (adId, extensionDaysOrDate = 5) => {
@@ -632,11 +634,17 @@ export default function App() {
     showToast('Renewal request sent to Admin! (අලුත් කිරීමේ ඉල්ලීම යොමු කරන ලදී)');
   };
 
-  const handleRejectAd = (adId) => {
+  const handleRejectAd = (adId, reason = '') => {
     let rejectTarget = null;
     const updated = ads.map((a) => {
       if (a.id === adId) {
-        rejectTarget = { ...a, status: 'Pending Approval', isFake: false };
+        rejectTarget = {
+          ...a,
+          status: 'Rejected',
+          isApproved: false,
+          paymentStatus: 'Rejected',
+          rejectionReason: reason || 'Payment slip verification failed or invalid.'
+        };
         return rejectTarget;
       }
       return a;
@@ -645,7 +653,7 @@ export default function App() {
     if (rejectTarget) {
       updateAdInDb(adId, rejectTarget).catch(err => console.warn('Mongo reject ad sync failed', err));
     }
-    showToast(`Ad #${adId} marked as Pending Approval.`);
+    showToast(`Ad #${adId} rejected.`);
   };
 
   const handleMarkFakeAd = (adId) => {
@@ -780,10 +788,9 @@ export default function App() {
       return isAdFake && ad.isActive !== false;
     }
 
-    // Normal feed: EXCLUDE fake ads completely!
-    if (isAdFake) return false;
-
-    if (ad.status && ad.status === 'Pending Approval') return false;
+    // Normal feed: EXCLUDE unapproved, pending, or rejected ads completely!
+    if (ad.status && ad.status !== 'Approved') return false;
+    if (ad.isApproved === false && ad.status !== 'Approved') return false;
     if (ad.isActive === false) return false;
 
     // EXCLUDE EXPIRED ADS! (Valid for 5 days or set period, then hidden from feed)
