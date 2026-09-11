@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', 'Noto Sans Sinhala', sans-serif;
+  background-color: #f6f7fb;
+  color: #1f2937;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #c7c7c7;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Continuous breathing pulse animation for Admin Top Banner */
+@keyframes bannerScalePulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 4px 6px -1px rgba(240, 98, 119, 0.2);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 10px 22px -3px rgba(240, 98, 119, 0.4);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 4px 6px -1px rgba(240, 98, 119, 0.2);
+  }
+}
+
+.banner-pulse-animation {
+  animation: bannerScalePulse 2.2s ease-in-out infinite;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, box-shadow;
+}
+
+.banner-pulse-animation:hover {
+  animation-play-state: paused;
+  transform: scale(1.03);
+  box-shadow: 0 14px 28px -4px rgba(240, 98, 119, 0.5);
+}
+
+/* Subtle icon bounce */
+@keyframes iconPulse {
+  0%, 100% {
+    transform: scale(1) rotate(-45deg);
+  }
+  50% {
+    transform: scale(1.15) rotate(-45deg);
+  }
+}
+
+.icon-pulse-animation {
+  animation: iconPulse 2.2s ease-in-out infinite;
+}

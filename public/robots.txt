@@ -1,0 +1,8 @@
+﻿# robots.txt for Taizer Ads (https://taizerads.lk)
+User-agent: *
+Allow: /
+Disallow: /ceo
+Disallow: /admin
+
+# Sitemap location
+Sitemap: https://taizerads.lk/sitemap.xml
