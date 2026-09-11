@@ -210,31 +210,6 @@ export default function AdDetailView({
         </div>
       </div>
 
-      {/* 4. Contact Buttons (WhatsApp & Telegram) */}
-      <div className="space-y-2.5">
-        {/* WhatsApp Green Outline Button */}
-        <a
-          href={`https://wa.me/${(ad.whatsapp || '+94767601924').replace(/\+/g, '')}`}
-          target="_blank"
-          rel="noreferrer"
-          className="w-full flex items-center justify-center space-x-2 border-2 border-[#16a34a] hover:bg-green-50/70 text-[#16a34a] font-bold py-2.5 px-4 rounded-lg text-sm sm:text-base transition shadow-xs"
-        >
-          <MessageCircle className="w-5 h-5 fill-current" />
-          <span>{ad.whatsapp || '+94767601924'}</span>
-        </a>
-
-        {/* Telegram Blue Outline Button */}
-        <a
-          href={`https://t.me/${(ad.telegram || '+94764097500').replace(/\+/g, '')}`}
-          target="_blank"
-          rel="noreferrer"
-          className="w-full flex items-center justify-center space-x-2 border-2 border-[#0284c7] hover:bg-sky-50/70 text-[#0284c7] font-bold py-2.5 px-4 rounded-lg text-sm sm:text-base transition shadow-xs"
-        >
-          <Send className="w-5 h-5" />
-          <span>{ad.telegram || '+94764097500'}</span>
-        </a>
-      </div>
-
       {/* 6. Image Preview Showcase (Displays both portrait and landscape fully without cropping) */}
       <div 
         onClick={() => setIsZoomModalOpen(true)}
