@@ -1338,7 +1338,7 @@ export default function AdminPanel({
         `⭐ 24 Hours Service Line Available`,
         "",
         `✨ DESCRIPTION & PACKAGES ✨`,
-        (editingAd.description || '').trim()
+        ...(editingAd.description || '').split(/\r?\n/)
       ]
     };
     onUpdateAd(updated);
@@ -1474,14 +1474,21 @@ export default function AdminPanel({
 
           <button
             onClick={() => setActiveAdminTab('stories')}
-            className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl font-bold text-xs transition whitespace-nowrap ${
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold text-xs transition whitespace-nowrap ${
               activeAdminTab === 'stories'
                 ? 'bg-[#f03a5f] text-white shadow-md'
                 : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}
           >
-            <CircleDot className="w-4 h-4" />
-            <span>Live Story Avatars</span>
+            <div className="flex items-center space-x-2.5">
+              <CircleDot className="w-4 h-4 text-pink-400" />
+              <span>Live Story Avatars</span>
+            </div>
+            {pendingStoryRequests.length > 0 && (
+              <span className="bg-amber-400 text-black text-[10px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
+                {pendingStoryRequests.length}
+              </span>
+            )}
           </button>
 
           <button
@@ -1588,7 +1595,7 @@ export default function AdminPanel({
           {activeAdminTab === 'overview' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               {/* Stat Counters Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
                 <div className="bg-[#1e293b] border border-gray-800 p-3.5 rounded-xl shadow-xs">
                   <p className="text-xs text-gray-400 font-semibold">Total Ads</p>
                   <p className="text-2xl font-black text-white mt-1">{totalAds}</p>
@@ -1653,6 +1660,30 @@ export default function AdminPanel({
                   </p>
                   <p className="text-2xl font-black text-amber-300 mt-1">{pendingPackageRequests.length}</p>
                   <p className="text-[10px] text-amber-200/80 mt-1 font-medium">Wallet Requests</p>
+                </div>
+
+                {/* 🔴 Live Story Avatars Requests Counter Card */}
+                <div 
+                  onClick={() => setActiveAdminTab('stories')}
+                  className={`border p-3.5 rounded-xl shadow-xs cursor-pointer transition group ${
+                    pendingStoryRequests.length > 0 
+                      ? 'bg-[#1e293b] border-amber-500/80 ring-1 ring-amber-500/40 hover:border-amber-400' 
+                      : 'bg-[#1e293b] border-pink-900/50 hover:border-pink-500'
+                  }`}
+                >
+                  <p className="text-xs text-pink-400 font-semibold flex items-center justify-between">
+                    <span className="flex items-center space-x-1">
+                      <CircleDot className="w-3.5 h-3.5 text-pink-400" />
+                      <span>Story Requests</span>
+                    </span>
+                    <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" />
+                  </p>
+                  <p className={`text-2xl font-black mt-1 ${pendingStoryRequests.length > 0 ? 'text-amber-300 animate-pulse' : 'text-pink-300'}`}>
+                    {pendingStoryRequests.length}
+                  </p>
+                  <p className="text-[10px] text-pink-200/80 mt-1 font-medium">
+                    {pendingStoryRequests.length > 0 ? 'Action required' : 'Avatars queue'}
+                  </p>
                 </div>
 
                 <div className="bg-[#1e293b] border border-red-900/40 p-3.5 rounded-xl shadow-xs">

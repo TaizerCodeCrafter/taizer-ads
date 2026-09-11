@@ -471,7 +471,7 @@ export default function UserDashboard({
         `⭐ 24 Hours Service Line Available`,
         "",
         `✨ DESCRIPTION & PACKAGES ✨`,
-        (editingAd.description || '').trim()
+        ...(editingAd.description || '').split(/\r?\n/)
       ]
     };
     onUpdateAd && onUpdateAd(updated);
@@ -685,7 +685,7 @@ export default function UserDashboard({
         `⭐ 24 Hours Service Line Available`,
         "",
         `✨ DESCRIPTION & PACKAGES ✨`,
-        description.trim()
+        ...(description || '').split(/\r?\n/)
       ],
       isSaved: false,
       isFake: false,

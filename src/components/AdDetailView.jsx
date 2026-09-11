@@ -14,7 +14,8 @@ import {
   AlertOctagon,
   ShieldCheck,
   CheckCircle2,
-  X
+  X,
+  Maximize2
 } from 'lucide-react';
 
 export default function AdDetailView({ 
@@ -37,6 +38,7 @@ export default function AdDetailView({
   const [isComplainModalOpen, setIsComplainModalOpen] = useState(false);
   const [complainReason, setComplainReason] = useState('Fake / Inaccurate Information');
   const [complainText, setComplainText] = useState('');
+  const [isZoomModalOpen, setIsZoomModalOpen] = useState(false);
 
   useEffect(() => {
     if (ad && ad.likes !== undefined) {
@@ -233,18 +235,35 @@ export default function AdDetailView({
         </a>
       </div>
 
-      {/* 6. Image Preview Showcase */}
-      <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex justify-center max-h-[460px] relative">
+      {/* 6. Image Preview Showcase (Displays both portrait and landscape fully without cropping) */}
+      <div 
+        onClick={() => setIsZoomModalOpen(true)}
+        className="rounded-2xl overflow-hidden border border-gray-200/90 bg-slate-950 flex items-center justify-center min-h-[340px] max-h-[640px] sm:max-h-[680px] relative shadow-lg group cursor-pointer"
+        title="Click to view full photo (සම්පූර්ණ පින්තූරය විශාල කර බලන්න)"
+      >
+        {/* Ambient blurred backdrop so portrait photos blend seamlessly without harsh borders */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center blur-2xl opacity-35 scale-110 pointer-events-none"
+          style={{ backgroundImage: `url(${ad.image})` }}
+        />
+
         <img
           src={ad.image}
           alt={ad.title}
-          className={`w-full h-full object-contain sm:object-cover max-h-[460px] ${isFake ? 'grayscale contrast-125' : ''}`}
+          className={`relative z-10 w-auto h-auto max-w-full max-h-[640px] sm:max-h-[680px] object-contain mx-auto transition-transform duration-300 group-hover:scale-[1.01] ${isFake ? 'grayscale contrast-125' : ''}`}
           onError={(e) => {
             e.target.src = 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&q=80';
           }}
         />
+
+        {/* Full photo view badge hint */}
+        <div className="absolute bottom-3 right-3 z-20 bg-black/70 hover:bg-black/90 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center space-x-1.5 opacity-90 group-hover:opacity-100 transition shadow-md border border-white/20">
+          <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+          <span>Full Photo (විශාල කර බලන්න)</span>
+        </div>
+
         {isFake && (
-          <div className="absolute inset-0 bg-red-950/75 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-4">
+          <div className="absolute inset-0 z-30 bg-red-950/75 backdrop-blur-[1px] flex flex-col items-center justify-center text-center p-4">
             <span className="bg-red-600 text-white text-sm sm:text-xl font-black px-4 py-2 rounded-xl uppercase tracking-widest shadow-xl border-2 border-white animate-pulse">
               🚫 VERIFIED FAKE AD / ව්‍යාජයි
             </span>
@@ -255,22 +274,75 @@ export default function AdDetailView({
         )}
       </div>
 
-      {/* 7. Detailed Description & Packages (Screenshot 2 style) */}
-      <div className="border border-gray-200 rounded-xl p-5 bg-[#fafafa] space-y-3.5">
+      {/* Fullscreen Image Lightbox Modal */}
+      {isZoomModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
+          onClick={() => setIsZoomModalOpen(false)}
+        >
+          <div className="relative max-w-5xl max-h-[96vh] flex flex-col items-center justify-center">
+            <button
+              onClick={() => setIsZoomModalOpen(false)}
+              className="absolute -top-10 right-0 sm:-right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition cursor-pointer"
+              title="Close (වසන්න)"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={ad.image}
+              alt={ad.title}
+              className="max-h-[90vh] max-w-full object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 7. Detailed Description & Packages (With full vertical newline breakdown) */}
+      <div className="border border-gray-200 rounded-xl p-5 bg-[#fafafa] space-y-3.5 shadow-xs">
         <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide border-b pb-2">
           Service Details & Tariff Information
         </h3>
 
-        <div className="space-y-1.5 text-xs sm:text-sm text-gray-700 leading-relaxed font-medium">
-          {ad.packages && ad.packages.length > 0 ? (
-            ad.packages.map((line, idx) => (
-              <p key={idx} className={line === "" ? "h-2" : line.includes("PACKAGES") || line.includes("WELCOME") ? "font-bold text-gray-900 pt-1" : ""}>
-                {line}
-              </p>
-            ))
-          ) : (
-            <p>{ad.description}</p>
-          )}
+        <div className="space-y-1.5 text-xs sm:text-sm text-gray-800 leading-relaxed font-medium">
+          {(() => {
+            // Flatten packages and split any multi-line strings so every line breaks downwards vertically
+            const rawLines = (ad.packages && ad.packages.length > 0)
+              ? ad.packages.flatMap(line => (typeof line === 'string' ? line.split(/\r?\n/) : [line]))
+              : (ad.description || '').split(/\r?\n/);
+
+            return rawLines.map((line, idx) => {
+              const str = (line || '').toString();
+              const trimmed = str.trim();
+
+              // Blank line => paragraph break
+              if (!trimmed) {
+                return <div key={idx} className="h-2.5" />;
+              }
+
+              const isHeader = trimmed.includes("PACKAGES") || 
+                               trimmed.includes("WELCOME") || 
+                               trimmed.startsWith("⭐") || 
+                               trimmed.startsWith("✨");
+
+              const isBullet = /^[▪️•\-\*➡→⚡🔥✔✓🚫]/.test(trimmed);
+
+              return (
+                <p 
+                  key={idx} 
+                  className={`break-words whitespace-pre-line ${
+                    isHeader 
+                      ? "font-bold text-gray-900 text-sm sm:text-base pt-2 pb-1 border-b border-gray-200/60" 
+                      : isBullet 
+                        ? "pl-1 text-gray-800 font-semibold" 
+                        : "text-gray-700"
+                  }`}
+                >
+                  {str}
+                </p>
+              );
+            });
+          })()}
         </div>
       </div>
 
