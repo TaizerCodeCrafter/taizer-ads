@@ -71,6 +71,7 @@ export default function AdminPanel({
   stories,
   siteConfig,
   users = [],
+  initialTab = 'overview',
   onUpdateUsers,
   onAdjustCredits,
   onUpdateSiteConfig,
@@ -89,7 +90,13 @@ export default function AdminPanel({
   onShowToast
 }) {
   const { showConfirm, showAlert, showPrompt } = useDialog();
-  const [activeAdminTab, setActiveAdminTab] = useState('overview'); // 'overview' | 'ads' | 'banners' | 'stories' | 'pricing' | 'complaints' | 'agents'
+  const [activeAdminTab, setActiveAdminTab] = useState(initialTab || 'overview');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveAdminTab(initialTab);
+    }
+  }, [initialTab]);
   
   // Local state for banner settings
   const [bannerConfig, setBannerConfig] = useState({

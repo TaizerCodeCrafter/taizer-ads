@@ -22,6 +22,7 @@ export default function MobileHomeBar({
   onOpenAgents,
   onOpenFakeAds,
   onOpenHelpServices,
+  onOpenBlog,
   siteConfig = {}
 }) {
   const { showAlert } = useDialog();
@@ -45,12 +46,16 @@ export default function MobileHomeBar({
   ];
 
   const handleBlogClick = async () => {
-    await showAlert({
-      title: 'Taizer Ads Blog (බ්ලොග් අංශය)',
-      titleSin: 'ළඟදීම බලාපොරොත්තු වන්න',
-      message: 'වටිනා ලිපි, ප්‍රවෘත්ති සහ ආරක්ෂක උපදෙස් සහිත බ්ලොග් අංශය ළඟදීම බලාපොරොත්තු වන්න!',
-      type: 'info'
-    });
+    if (onOpenBlog) {
+      onOpenBlog();
+    } else {
+      await showAlert({
+        title: 'Taizer Ads Blog (බ්ලොග් අංශය)',
+        titleSin: 'ළඟදීම බලාපොරොත්තු වන්න',
+        message: 'වටිනා ලිපි, ප්‍රවෘත්ති සහ ආරක්ෂක උපදෙස් සහිත බ්ලොග් අංශය ළඟදීම බලාපොරොත්තු වන්න!',
+        type: 'info'
+      });
+    }
   };
 
   const handleBannerRentClick = () => {

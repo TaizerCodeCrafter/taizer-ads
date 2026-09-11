@@ -17,9 +17,29 @@ import {
   MessageCircle
 } from 'lucide-react';
 
-export default function QuickSideWidget({ siteConfig = {} }) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function QuickSideWidget({ 
+  siteConfig = {},
+  isOpen: controlledIsOpen,
+  onClose: controlledOnClose,
+  onOpen: controlledOnOpen,
+  isCeoUnlocked = false,
+  onOpenAdminBlog
+}) {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [readingArticle, setReadingArticle] = useState(null);
+
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+
+  const handleOpen = () => {
+    if (controlledOnOpen) controlledOnOpen();
+    setInternalIsOpen(true);
+  };
+
+  const handleClose = () => {
+    if (controlledOnClose) controlledOnClose();
+    setInternalIsOpen(false);
+    setReadingArticle(null);
+  };
 
   const sideBlog = siteConfig?.sideBlog || {};
   const buttonConfig = sideBlog.button || {
@@ -69,7 +89,7 @@ export default function QuickSideWidget({ siteConfig = {} }) {
         {!isOpen && (
           <button
             type="button"
-            onClick={() => setIsOpen(true)}
+            onClick={handleOpen}
             style={{
               background: buttonConfig.isGradient 
                 ? (buttonConfig.bgGradient || 'linear-gradient(135deg, #881337 0%, #be123c 100%)')
@@ -117,10 +137,7 @@ export default function QuickSideWidget({ siteConfig = {} }) {
           {/* Backdrop */}
           <div 
             className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
-            onClick={() => {
-              setIsOpen(false);
-              setReadingArticle(null);
-            }}
+            onClick={handleClose}
           />
 
           {/* Drawer Container */}
@@ -144,6 +161,19 @@ export default function QuickSideWidget({ siteConfig = {} }) {
               </div>
 
               <div className="flex items-center space-x-1.5">
+                {isCeoUnlocked && !readingArticle && onOpenAdminBlog && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleClose();
+                      onOpenAdminBlog();
+                    }}
+                    className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition flex items-center space-x-1 text-[10px] font-bold shadow-xs cursor-pointer"
+                    title="Open Admin Blog Manager"
+                  >
+                    <span>+ Admin Edit</span>
+                  </button>
+                )}
                 {readingArticle && (
                   <button
                     type="button"
@@ -157,10 +187,7 @@ export default function QuickSideWidget({ siteConfig = {} }) {
                 )}
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsOpen(false);
-                    setReadingArticle(null);
-                  }}
+                  onClick={handleClose}
                   className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer"
                   title="Close Drawer"
                 >

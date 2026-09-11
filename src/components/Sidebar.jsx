@@ -28,6 +28,7 @@ export default function Sidebar({
   onOpenAgents,
   onOpenFakeAds,
   onOpenDashboard,
+  onOpenBlog,
   currentLang = 'sin'
 }) {
   const { showAlert } = useDialog();
@@ -120,17 +121,21 @@ export default function Sidebar({
 
             {/* Blog */}
             <button
-              onClick={async () => {
-                await showAlert({
-                  title: isSin ? 'බ්ලොග් අංශය (Blog)' : 'Taizer Ads Blog',
-                  titleSin: isSin ? 'ළඟදීම බලාපොරොත්තු වන්න' : 'Coming Soon',
-                  message: isSin 
-                    ? 'වටිනා ලිපි, ප්‍රවෘත්ති සහ ආරක්ෂක උපදෙස් සහිත බ්ලොග් අංශය ළඟදීම බලාපොරොත්තු වන්න!' 
-                    : 'Blog articles, scam awareness, and safety guidelines coming soon!',
-                  type: 'info'
-                });
+              onClick={() => {
+                if (onOpenBlog) {
+                  onOpenBlog();
+                } else {
+                  showAlert({
+                    title: isSin ? 'බ්ලොග් අංශය (Blog)' : 'Taizer Ads Blog',
+                    titleSin: isSin ? 'ළඟදීම බලාපොරොත්තු වන්න' : 'Coming Soon',
+                    message: isSin 
+                      ? 'වටිනා ලිපි, ප්‍රවෘත්ති සහ ආරක්ෂක උපදෙස් සහිත බ්ලොග් අංශය ළඟදීම බලාපොරොත්තු වන්න!' 
+                      : 'Blog articles, scam awareness, and safety guidelines coming soon!',
+                    type: 'info'
+                  });
+                }
               }}
-              className="flex items-center justify-center space-x-1.5 bg-[#0891b2] hover:bg-[#0e7490] text-white text-xs font-medium py-2 px-2 rounded-lg transition shadow-sm"
+              className="flex items-center justify-center space-x-1.5 bg-[#0891b2] hover:bg-[#0e7490] text-white text-xs font-medium py-2 px-2 rounded-lg transition shadow-sm cursor-pointer"
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span>{isSin ? 'බ්ලොග්' : 'Blog'}</span>

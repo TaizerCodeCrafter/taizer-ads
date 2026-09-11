@@ -168,6 +168,8 @@ export default function App() {
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isFaqModalOpen, setIsFaqModalOpen] = useState(false);
+  const [isBlogOpen, setIsBlogOpen] = useState(false);
+  const [adminInitialTab, setAdminInitialTab] = useState('overview');
   const [toastMessage, setToastMessage] = useState(null);
   const [dbStatus, setDbStatus] = useState({ isConnected: false, dbState: 'Checking...' });
 
@@ -1058,6 +1060,7 @@ export default function App() {
             stories={stories}
             siteConfig={siteConfig}
             users={users}
+            initialTab={adminInitialTab}
             onUpdateUsers={handleUpdateUsers}
             onAdjustCredits={handleAdjustUserCredits}
             onUpdateSiteConfig={handleUpdateSiteConfig}
@@ -1122,6 +1125,7 @@ export default function App() {
                 onOpenHowToPublish={() => setIsHowToPublishOpen(true)}
                 onOpenAgents={() => setIsAgentsOpen(true)}
                 onOpenFakeAds={() => setIsFakeAdsOpen(true)}
+                onOpenBlog={() => setIsBlogOpen(true)}
                 onOpenDashboard={() => {
                   if (isLoggedIn) {
                     setDashboardTab('my-ads');
@@ -1201,6 +1205,7 @@ export default function App() {
                       showToast(selectedCategory === 'fake' ? 'Filters cleared.' : 'Showing verified Fake Ads & Scams archive.');
                     }}
                     onOpenHelpServices={() => setIsContactModalOpen(true)}
+                    onOpenBlog={() => setIsBlogOpen(true)}
                     siteConfig={siteConfig}
                   />
 
@@ -1413,6 +1418,7 @@ export default function App() {
         onOpenAbout={() => setIsAboutModalOpen(true)}
         onOpenContact={() => setIsContactModalOpen(true)}
         onOpenFaq={() => setIsFaqModalOpen(true)}
+        onOpenBlog={() => setIsBlogOpen(true)}
         currentLang={currentLang}
         onToggleLang={(lang) => setCurrentLang(lang)}
       />
@@ -1449,6 +1455,14 @@ export default function App() {
       {!isAdminView && (
         <QuickSideWidget
           siteConfig={siteConfig}
+          isOpen={isBlogOpen}
+          onClose={() => setIsBlogOpen(false)}
+          onOpen={() => setIsBlogOpen(true)}
+          isCeoUnlocked={isCeoUnlocked}
+          onOpenAdminBlog={() => {
+            setAdminInitialTab('blog');
+            setCurrentView('admin');
+          }}
           onOpenPostModal={() => {
             if (isLoggedIn) {
               setDashboardTab('new-ad');

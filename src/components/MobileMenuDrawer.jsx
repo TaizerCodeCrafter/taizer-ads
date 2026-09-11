@@ -34,6 +34,7 @@ export default function MobileMenuDrawer({
   onOpenAbout,
   onOpenContact,
   onOpenFaq,
+  onOpenBlog,
   savedOnly,
   onToggleSavedOnly,
   selectedCategory,
@@ -78,14 +79,18 @@ export default function MobileMenuDrawer({
 
   const handleBlogClick = async () => {
     onClose();
-    await showAlert({
-      title: isSin ? 'බ්ලොග් අංශය (Taizer Ads Blog)' : 'Taizer Ads Blog',
-      titleSin: isSin ? 'ළඟදීම බලාපොරොත්තු වන්න' : 'Coming Soon',
-      message: isSin 
-        ? 'වටිනා ලිපි, ව්‍යාපාරික උපදෙස් සහ ආරක්ෂක පුවත් සහිත බ්ලොග් අංශය ළඟදීම බලාපොරොත්තු වන්න!' 
-        : 'Blog articles, tips, and security guides coming soon!',
-      type: 'info'
-    });
+    if (onOpenBlog) {
+      onOpenBlog();
+    } else {
+      await showAlert({
+        title: isSin ? 'බ්ලොග් අංශය (Taizer Ads Blog)' : 'Taizer Ads Blog',
+        titleSin: isSin ? 'ළඟදීම බලාපොරොත්තු වන්න' : 'Coming Soon',
+        message: isSin 
+          ? 'වටිනා ලිපි, ව්‍යාපාරික උපදෙස් සහ ආරක්ෂක පුවත් සහිත බ්ලොග් අංශය ළඟදීම බලාපොරොත්තු වන්න!' 
+          : 'Blog articles, tips, and security guides coming soon!',
+        type: 'info'
+      });
+    }
   };
 
   const handlePremiumClick = () => {
