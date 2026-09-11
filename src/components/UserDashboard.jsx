@@ -30,10 +30,11 @@ import {
   RefreshCw,
   Calendar,
   XCircle,
+  ExternalLink,
   Image as ImageIcon
 } from 'lucide-react';
 import { useDialog } from '../context/DialogContext.jsx';
-import { getAdValidity } from '../utils/adValidity.js';
+import { getAdValidity, isPdfSlip } from '../utils/adValidity.js';
 
 // Client-side image compressor for bank payment slips (keeps size < 800KB for fast MongoDB storage)
 const compressImageFile = (file, maxWidth = 1200, quality = 0.75) => {
@@ -133,6 +134,7 @@ export default function UserDashboard({
   const [adFormStep, setAdFormStep] = useState(1); // 1 = Details, 2 = Payment & Slip
   const [adPaymentMethod, setAdPaymentMethod] = useState('bank'); // 'bank' | 'credits'
   const [adPaymentSlip, setAdPaymentSlip] = useState('');
+  const [adPaymentSlipName, setAdPaymentSlipName] = useState('');
   const [adPaymentRef, setAdPaymentRef] = useState('');
   const [isCompressingSlip, setIsCompressingSlip] = useState(false);
   const [viewingSlipUrl, setViewingSlipUrl] = useState(null);
@@ -463,23 +465,66 @@ export default function UserDashboard({
     onShowToast && onShowToast('දැන්වීමේ වෙනස්කම් සාර්ථකව සුරකින ලදී! (Ad updated successfully!)');
   };
 
-  // Handle Slip Upload in Step 2 with client-side compression
+  // Handle Slip Upload in Step 2 (Supports both Image and PDF files)
   const handleSlipUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+    if (isPdf) {
+      if (file.size > 10 * 1024 * 1024) {
+        await showAlert({
+          title: 'PDF File Too Large',
+          titleSin: 'PDF ලිපිගොනුව විශාල වැඩිය',
+          message: 'Please upload a PDF file smaller than 10MB.',
+          messageSin: 'කරුණාකර මෙගාබයිට් 10 (10MB) ට අඩු PDF ලිපිගොනුවක් තෝරන්න.',
+          type: 'warning'
+        });
+        return;
+      }
+
+      setIsCompressingSlip(true);
+      try {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const pdfDataUrl = event.target.result;
+          setAdPaymentSlip(pdfDataUrl);
+          setAdPaymentSlipName(file.name);
+          setIsCompressingSlip(false);
+          onShowToast && onShowToast(`PDF Bank Slip (${file.name}) uploaded successfully!`);
+        };
+        reader.onerror = () => {
+          setIsCompressingSlip(false);
+          showAlert({
+            title: 'Upload Error',
+            titleSin: 'PDF කියවීමේ දෝෂයකි',
+            message: 'Could not read PDF file. Please try another file.',
+            type: 'danger'
+          });
+        };
+        reader.readAsDataURL(file);
+      } catch (err) {
+        setIsCompressingSlip(false);
+        console.error('Error reading PDF slip:', err);
+      }
+      return;
+    }
+
     try {
       setIsCompressingSlip(true);
       const compressed = await compressImageFile(file, 1200, 0.75);
       setAdPaymentSlip(compressed);
+      setAdPaymentSlipName(file.name);
       setIsCompressingSlip(false);
-      onShowToast && onShowToast('Bank slip uploaded successfully!');
+      onShowToast && onShowToast('Bank slip image uploaded successfully!');
     } catch (err) {
       setIsCompressingSlip(false);
       console.error('Error compressing slip:', err);
       showAlert({
         title: 'Upload Error',
         titleSin: 'රිසිට්පත Upload කිරීමේ දෝෂයකි',
-        message: 'Could not process the uploaded image. Please try another image.',
+        message: 'Could not process the uploaded file. Please select a valid Image (JPG, PNG) or PDF file.',
         type: 'danger'
       });
     }
@@ -640,6 +685,7 @@ export default function UserDashboard({
       paymentStatus: adPaymentMethod === 'credits' ? 'Paid via Wallet' : 'Pending Verification',
       paymentAmount: cost,
       paymentSlip: adPaymentMethod === 'credits' ? '' : adPaymentSlip,
+      paymentSlipName: adPaymentMethod === 'credits' ? '' : adPaymentSlipName,
       paymentRef: adPaymentRef.trim(),
       submittedAt: new Date().toISOString(),
       isActive: true
@@ -663,6 +709,7 @@ export default function UserDashboard({
     setSelectedFile(null);
     setImagePreview('');
     setAdPaymentSlip('');
+    setAdPaymentSlipName('');
     setAdPaymentRef('');
     setAdFormStep(1);
     setActiveTab('my-ads');
@@ -1369,7 +1416,9 @@ export default function UserDashboard({
                               className="inline-flex items-center space-x-1 text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer"
                             >
                               <FileText className="w-3.5 h-3.5" />
-                              <span>ගෙවූ රිසිට්පත බලන්න (View Slip)</span>
+                              <span>
+                                {isPdfSlip(ad.paymentSlip) ? '📑 ගෙවූ PDF රිසිට්පත බලන්න (View PDF Slip)' : '📄 ගෙවූ රිසිට්පත බලන්න (View Slip)'}
+                              </span>
                             </button>
                           ) : (
                             <span className="text-amber-800 italic text-[10px]">
@@ -1782,53 +1831,112 @@ export default function UserDashboard({
                           Upload Payment Receipt / Bank Slip (රිසිට්පත Upload කරන්න) *
                         </h4>
                         <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
-                          බැංකුවෙන් ලබාදුන් රිසිට්පතේ පැහැදිලි ඡායාරූපයක් (Slip / Screenshot) තෝරන්න. Admin විසින් මෙය පරීක්ෂා කර දැන්වීම සක්‍රීය කරනු ඇත.
+                          බැංකුවෙන් ලබාදුන් රිසිට්පතේ පැහැදිලි ඡායාරූපයක් (Image) හෝ PDF ලිපිගොනුවක් තෝරන්න. Admin විසින් මෙය පරීක්ෂා කර දැන්වීම සක්‍රීය කරනු ඇත.
                         </p>
                       </div>
 
                       {isCompressingSlip ? (
                         <div className="flex items-center justify-center space-x-2 text-xs text-amber-700 py-3">
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>Processing & compressing image...</span>
+                          <span>Processing file...</span>
                         </div>
                       ) : adPaymentSlip ? (
                         <div className="space-y-3 pt-2">
-                          <div className="relative inline-block border-2 border-green-500 rounded-xl overflow-hidden shadow-md max-w-xs mx-auto">
-                            <img
-                              src={adPaymentSlip}
-                              alt="Uploaded Slip"
-                              className="max-h-52 w-auto object-contain bg-gray-900"
-                            />
-                            <div className="absolute top-2 right-2 bg-green-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow">
-                              ✓ Slip Ready
-                            </div>
-                          </div>
+                          {isPdfSlip(adPaymentSlip) ? (
+                            /* PDF Preview Card */
+                            <div className="border-2 border-red-500 bg-red-50/60 rounded-xl p-4 max-w-sm mx-auto shadow-md space-y-2.5">
+                              <div className="flex items-center space-x-3 text-left">
+                                <div className="w-11 h-11 rounded-xl bg-red-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                                  <FileText className="w-6 h-6" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <span className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                                    PDF Document
+                                  </span>
+                                  <h5 className="font-extrabold text-xs text-gray-900 truncate mt-1">
+                                    {adPaymentSlipName || 'Bank_Payment_Receipt.pdf'}
+                                  </h5>
+                                  <p className="text-[10px] text-green-700 font-bold flex items-center gap-1 mt-0.5">
+                                    <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                    <span>✓ PDF Slip Ready (සූදානම්)</span>
+                                  </p>
+                                </div>
+                              </div>
 
-                          <div className="flex items-center justify-center space-x-3">
-                            <label className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold px-3 py-1.5 rounded-lg cursor-pointer transition">
-                              Change Slip (වෙනත් ඡායාරූපයක්)
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleSlipUpload}
-                                className="hidden"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => setAdPaymentSlip('')}
-                              className="text-xs text-red-600 hover:text-red-800 font-bold hover:underline cursor-pointer"
-                            >
-                              Remove
-                            </button>
-                          </div>
+                              <div className="flex items-center justify-center space-x-2 pt-2 border-t border-red-200">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingSlipUrl(adPaymentSlip)}
+                                  className="text-xs bg-red-600 hover:bg-red-700 text-white font-bold px-3 py-1.5 rounded-lg transition flex items-center space-x-1 cursor-pointer shadow-xs"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Preview PDF (බලන්න)</span>
+                                </button>
+                                <label className="text-xs bg-white hover:bg-gray-100 text-gray-800 font-bold px-3 py-1.5 rounded-lg border border-gray-300 cursor-pointer transition">
+                                  Change Slip
+                                  <input
+                                    type="file"
+                                    accept="image/*,application/pdf,.pdf"
+                                    onChange={handleSlipUpload}
+                                    className="hidden"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAdPaymentSlip('');
+                                    setAdPaymentSlipName('');
+                                  }}
+                                  className="text-xs text-red-600 hover:text-red-800 font-bold hover:underline cursor-pointer"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Image Slip Card */
+                            <div className="space-y-3">
+                              <div className="relative inline-block border-2 border-green-500 rounded-xl overflow-hidden shadow-md max-w-xs mx-auto">
+                                <img
+                                  src={adPaymentSlip}
+                                  alt="Uploaded Slip"
+                                  className="max-h-52 w-auto object-contain bg-gray-900"
+                                />
+                                <div className="absolute top-2 right-2 bg-green-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow">
+                                  ✓ Image Slip Ready
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-center space-x-3">
+                                <label className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold px-3 py-1.5 rounded-lg cursor-pointer transition">
+                                  Change Slip (වෙනත් Slip එකක්)
+                                  <input
+                                    type="file"
+                                    accept="image/*,application/pdf,.pdf"
+                                    onChange={handleSlipUpload}
+                                    className="hidden"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAdPaymentSlip('');
+                                    setAdPaymentSlipName('');
+                                  }}
+                                  className="text-xs text-red-600 hover:text-red-800 font-bold hover:underline cursor-pointer"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <label className="inline-block bg-[#f03a5f] hover:bg-[#d92348] text-white text-xs font-bold px-5 py-2.5 rounded-lg cursor-pointer transition shadow-xs active:scale-95">
-                          <span>Browse / Select Bank Slip Image</span>
+                          <span>Browse / Select Bank Slip (Image or PDF)</span>
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,application/pdf,.pdf"
                             onChange={handleSlipUpload}
                             className="hidden"
                           />
@@ -3123,14 +3231,16 @@ export default function UserDashboard({
         </div>
       )}
 
-      {/* Submitted Payment Slip Viewer Modal */}
+      {/* Submitted Payment Slip Viewer Modal (Image & PDF Compatible) */}
       {viewingSlipUrl && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
             <div className="flex items-center justify-between p-3.5 border-b border-gray-200 bg-gray-50">
               <span className="font-bold text-xs text-gray-900 flex items-center space-x-1.5">
                 <FileText className="w-4 h-4 text-[#f03a5f]" />
-                <span>Uploaded Payment Slip (ගෙවූ රිසිට්පත)</span>
+                <span>
+                  {isPdfSlip(viewingSlipUrl) ? 'Uploaded PDF Payment Receipt (ගෙවූ PDF රිසිට්පත)' : 'Uploaded Image Payment Slip (ගෙවූ රිසිට්පත)'}
+                </span>
               </span>
               <button
                 type="button"
@@ -3140,20 +3250,58 @@ export default function UserDashboard({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-4 overflow-y-auto flex items-center justify-center bg-gray-950">
-              <img
-                src={viewingSlipUrl}
-                alt="Payment Slip"
-                className="max-h-[70vh] w-auto object-contain rounded-lg"
-              />
+
+            <div className="p-4 overflow-y-auto flex-1 flex flex-col items-center justify-center bg-gray-950 space-y-3">
+              {isPdfSlip(viewingSlipUrl) ? (
+                /* PDF Document Viewer */
+                <div className="w-full flex flex-col items-center space-y-3">
+                  <div className="w-full h-[60vh] rounded-xl overflow-hidden border border-gray-700 bg-white shadow-md">
+                    <iframe
+                      src={viewingSlipUrl}
+                      title="PDF Payment Slip"
+                      className="w-full h-full border-0"
+                    />
+                  </div>
+                  <a
+                    href={viewingSlipUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    download="payment_receipt.pdf"
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition flex items-center space-x-1.5 shadow"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open / Download PDF Document (සම්පූර්ණ PDF එක බලන්න)</span>
+                  </a>
+                </div>
+              ) : (
+                /* Image Slip Viewer */
+                <div className="w-full flex flex-col items-center space-y-3">
+                  <img
+                    src={viewingSlipUrl}
+                    alt="Payment Slip"
+                    className="max-h-[65vh] w-auto object-contain rounded-lg shadow-md"
+                  />
+                  <a
+                    href={viewingSlipUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    download="payment_slip.jpg"
+                    className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold rounded-xl text-xs transition flex items-center space-x-1.5 shadow"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open Full Resolution Image</span>
+                  </a>
+                </div>
+              )}
             </div>
+
             <div className="p-3 bg-gray-50 border-t border-gray-200 text-right">
               <button
                 type="button"
                 onClick={() => setViewingSlipUrl(null)}
                 className="bg-gray-800 hover:bg-black text-white font-bold px-4 py-1.5 rounded-lg text-xs transition cursor-pointer"
               >
-                Close
+                Close (වසන්න)
               </button>
             </div>
           </div>

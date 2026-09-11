@@ -13,6 +13,7 @@ import {
   Trash2,
   Edit,
   ExternalLink,
+  FileText,
   PlusCircle,
   Eye,
   ArrowLeft,
@@ -62,7 +63,7 @@ import {
   HardDrive
 } from 'lucide-react';
 import { useDialog } from '../../context/DialogContext.jsx';
-import { getAdValidity, calculateExpiryDate, calculateExpiryFromDateString, getDaysBetween, formatDateForDateInput, matchAdSearch } from '../../utils/adValidity.js';
+import { getAdValidity, calculateExpiryDate, calculateExpiryFromDateString, getDaysBetween, formatDateForDateInput, matchAdSearch, isPdfSlip } from '../../utils/adValidity.js';
 import { sendNotifyLkSms, generateOtp } from '../../utils/smsService.js';
 import { deleteUserFromDb } from '../../services/api.js';
 
@@ -2148,7 +2149,11 @@ export default function AdminPanel({
                                 className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-400 text-[10px] font-black px-2.5 py-1 rounded-lg flex items-center space-x-1.5 transition cursor-pointer shadow-sm animate-pulse"
                               >
                                 <FileText className="w-3.5 h-3.5" />
-                                <span>📄 View Payment Slip (රිසිට්පත බලන්න)</span>
+                                <span>
+                                  {isPdfSlip(ad.paymentSlip)
+                                    ? '📑 View PDF Receipt (PDF රිසිට්පත)'
+                                    : '📄 View Payment Slip (රිසිට්පත බලන්න)'}
+                                </span>
                               </button>
                             )}
 
@@ -7167,14 +7172,46 @@ export default function AdminPanel({
             </div>
 
             <div className="p-4 overflow-y-auto space-y-4 flex-1">
-              {/* Slip Image Box */}
-              <div className="bg-[#0b1329] border border-gray-800 rounded-xl p-3 flex items-center justify-center max-h-80 overflow-hidden">
-                <img
-                  src={inspectingSlipAd.paymentSlip}
-                  alt="Bank Payment Slip"
-                  className="max-h-72 w-auto object-contain rounded-lg shadow-md"
-                />
-              </div>
+              {/* Slip Preview Box (Supports both PDF & Image) */}
+              {isPdfSlip(inspectingSlipAd.paymentSlip) ? (
+                <div className="bg-[#0b1329] border border-gray-800 rounded-xl p-3 flex flex-col items-center justify-center space-y-2.5">
+                  <div className="w-full h-80 rounded-lg overflow-hidden border border-gray-700 bg-white shadow-inner">
+                    <iframe
+                      src={inspectingSlipAd.paymentSlip}
+                      title="PDF Payment Slip"
+                      className="w-full h-full border-0"
+                    />
+                  </div>
+                  <a
+                    href={inspectingSlipAd.paymentSlip}
+                    target="_blank"
+                    rel="noreferrer"
+                    download={`slip-${inspectingSlipAd.id || 'receipt'}.pdf`}
+                    className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-xs"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open / Download PDF Document (සම්පූර්ණ PDF එක බලන්න)</span>
+                  </a>
+                </div>
+              ) : (
+                <div className="bg-[#0b1329] border border-gray-800 rounded-xl p-3 flex flex-col items-center justify-center space-y-2 max-h-80 overflow-auto">
+                  <img
+                    src={inspectingSlipAd.paymentSlip}
+                    alt="Bank Payment Slip"
+                    className="max-h-64 w-auto object-contain rounded-lg shadow-md"
+                  />
+                  <a
+                    href={inspectingSlipAd.paymentSlip}
+                    target="_blank"
+                    rel="noreferrer"
+                    download={`slip-${inspectingSlipAd.id || 'receipt'}.jpg`}
+                    className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[11px] font-bold transition flex items-center space-x-1.5 shadow-xs"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Open Full Resolution Image</span>
+                  </a>
+                </div>
+              )}
 
               {/* Transaction & Ad Summary */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">

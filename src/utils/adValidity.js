@@ -274,3 +274,14 @@ export function matchAdSearch(ad, rawQuery) {
     return hasLocationMatch;
   });
 }
+
+/**
+ * Checks if a given payment slip URL / Base64 string is a PDF document
+ */
+export function isPdfSlip(url) {
+  if (!url || typeof url !== 'string') return false;
+  return url.startsWith('data:application/pdf') ||
+         url.toLowerCase().endsWith('.pdf') ||
+         url.toLowerCase().includes('.pdf?') ||
+         url.includes('application/pdf');
+}
