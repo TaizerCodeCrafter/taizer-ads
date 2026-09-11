@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, MessageCircle, ArrowRight, CheckCircle2, Settings, Edit, RefreshCw, Smartphone, Clock, ShieldAlert } from 'lucide-react';
 import { useDialog } from '../context/DialogContext.jsx';
-import { dispatchOtp, normalizePhoneNumber } from '../utils/smsService.js';
+import { dispatchOtp, normalizePhoneNumber, isValidSriLankanMobile } from '../utils/smsService.js';
 
 export default function LoginForm({
   onLoginSuccess,
@@ -70,12 +70,12 @@ export default function LoginForm({
   const handleSendOtp = async (e) => {
     e?.preventDefault();
     const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-    if (!cleanPhone || cleanPhone.length < 8) {
+    if (!isValidSriLankanMobile(cleanPhone)) {
       await showAlert({
-        title: 'Phone Number Required',
-        titleSin: 'දුරකථන අංකය අවශ්‍යයි',
-        message: 'Please enter a valid mobile phone number (e.g. 077 123 4567).',
-        messageSin: 'කරුණාකර ඉදිරියට යාමට ඔබගේ දුරකථන අංකය ඇතුළත් කරන්න (උදා: 077 123 4567).',
+        title: 'Invalid Mobile Number',
+        titleSin: 'වලංගු නොවන දුරකථන අංකයකි',
+        message: 'Please enter a valid Sri Lankan mobile number (e.g., 077 123 4567 or 77 123 4567). Short or fake numbers are not allowed.',
+        messageSin: 'කරුණාකර වලංගු ශ්‍රී ලාංකික ජංගම දුරකථන අංකයක් ඇතුළත් කරන්න (උදා: 077 123 4567 හෝ 77 123 4567). ව්‍යාජ හෝ අසම්පූර්ණ අංක ඇතුළත් කළ නොහැක.',
         type: 'warning'
       });
       return;
@@ -95,41 +95,30 @@ export default function LoginForm({
       if (result.success) {
         setActiveOtp(result.otpCode);
         setOtpSentPhone(result.phone);
-        setIsLiveSmsSent(result.isLive);
+        setIsLiveSmsSent(true);
         setOtpStep(true);
         setResendCooldown(60);
 
-        if (result.isLive) {
-          onShowToast && onShowToast(`Real SMS sent to +${result.phone}! Check your inbox.`);
-        } else {
-          // Demo / Test Mode - Smooth toast without intrusive popup
-          onShowToast && onShowToast(`Test Code: ${result.otpCode} (Demo Mode)`);
-        }
+        onShowToast && onShowToast(`Real SMS sent to +${result.phone}! Check your inbox.`);
       } else {
-        showAlert({
-          title: 'SMS Delivery Notice',
-          titleSin: 'SMS පිළිබඳ දැනුම්දීම',
-          message: `${result.message || 'Could not send SMS.'} You can use the master test code: 1234 to log in.`,
-          messageSin: 'Notify.lk හරහා සැබෑ SMS යැවීම අසාර්ථක විය (SMS Balance හෝ API Key පරීක්ෂා කරන්න). ලොග් වීම සඳහා Master Code එක: 1234 ඇතුළත් කරන්න.',
-          type: 'warning'
+        await showAlert({
+          title: 'SMS Delivery Failed',
+          titleSin: 'SMS යැවීම අසාර්ථක විය',
+          message: `${result.message || 'Could not send SMS.'} Please verify your number or check Notify.lk SMS credits.`,
+          messageSin: `${result.messageSin || 'Notify.lk හරහා SMS යැවීම අසාර්ථක විය. කරුණාකර ඔබගේ දුරකථන අංකය පරීක්ෂා කරන්න හෝ නැවත උත්සාහ කරන්න.'}`,
+          type: 'danger'
         });
-        setActiveOtp('1234');
-        setOtpStep(true);
-        setResendCooldown(30);
       }
     } catch (err) {
       setIsSendingOtp(false);
       console.error('Error dispatching OTP:', err);
-      showAlert({
-        title: 'Connection Notice',
-        titleSin: 'සම්බන්ධතා දැනුම්දීම',
-        message: 'Could not connect to SMS Gateway. You can still login with test code: 1234',
-        messageSin: 'SMS Gateway වෙත සම්බන්ධ වීමට නොහැකි විය. ලොග් වීම සඳහා 1234 කේතය භාවිත කරන්න.',
-        type: 'info'
+      await showAlert({
+        title: 'SMS Gateway Error',
+        titleSin: 'SMS පද්ධතියේ දෝෂයකි',
+        message: 'Could not connect to SMS Gateway. Please try again.',
+        messageSin: 'SMS Gateway වෙත සම්බන්ධ වීමට නොහැකි විය. කරුණාකර සුළු මොහොතකින් නැවත උත්සාහ කරන්න.',
+        type: 'danger'
       });
-      setActiveOtp('1234');
-      setOtpStep(true);
-      setResendCooldown(30);
     }
   };
 
@@ -147,13 +136,13 @@ export default function LoginForm({
       return;
     }
 
-    // Verify against generated activeOtp or master code 1234
-    if (cleanInput !== activeOtp && cleanInput !== '1234') {
+    // Verify against generated activeOtp only - strict real SMS verification
+    if (cleanInput !== activeOtp) {
       await showAlert({
         title: 'Incorrect OTP Code',
         titleSin: 'කේතය වැරදියි',
-        message: 'The OTP code you entered is invalid. Please check your SMS inbox or click "Resend OTP".',
-        messageSin: 'ඔබ ඇතුළත් කළ OTP කේතය වැරදියි. කරුණාකර නැවත උත්සාහ කරන්න හෝ අලුත් කේතයක් ඉල්ලන්න.',
+        message: 'The OTP code you entered is invalid. Please check your SMS inbox or click "Resend OTP SMS".',
+        messageSin: 'ඔබ ඇතුළත් කළ OTP කේතය වැරදියි. කරුණාකර ඔබගේ දුරකථනයට ලැබුණු SMS පණිවිඩය පරීක්ෂා කර නැවත උත්සාහ කරන්න.',
         type: 'danger'
       });
       return;
@@ -266,37 +255,20 @@ export default function LoginForm({
         /* Step 2: Enter OTP Code */
         <form onSubmit={handleVerifyOtp} className="space-y-4 pt-2">
           {/* SMS Status Notification Box */}
-          {isLiveSmsSent ? (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-950 space-y-1.5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-1.5 font-bold text-emerald-800">
-                  <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Real SMS Sent to: {otpSentPhone ? `+${otpSentPhone}` : getFormattedPhoneDisplay()}</span>
-                </div>
-                <span className="bg-emerald-200 text-emerald-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Live SMS
-                </span>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-950 space-y-1.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1.5 font-bold text-emerald-800">
+                <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Real SMS Sent to: {otpSentPhone ? `+${otpSentPhone}` : getFormattedPhoneDisplay()}</span>
               </div>
-              <p className="text-[11px] text-emerald-700 leading-relaxed font-medium">
-                Notify.lk හරහා ඔබගේ දුරකථනයට කෙටි පණිවිඩයක් (SMS) යවන ලදී. එම 4-digit OTP කේතය පහතින් ඇතුළත් කරන්න.
-              </p>
+              <span className="bg-emerald-200 text-emerald-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                Live SMS
+              </span>
             </div>
-          ) : (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-950 space-y-1.5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-1.5 font-bold text-amber-900">
-                  <Smartphone className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>{otpSentMessage} {getFormattedPhoneDisplay()}</span>
-                </div>
-                <span className="bg-amber-200 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Demo Mode
-                </span>
-              </div>
-              <p className="text-[11px] text-amber-800 leading-relaxed">
-                සත්‍ය SMS යැවීමට Admin Panel එකෙන් Notify.lk සක්‍රිය කරන්න. පරීක්ෂා කිරීම සඳහා කේතය: <strong className="font-black text-amber-950 bg-amber-200/80 px-2 py-0.5 rounded text-xs tracking-wider">{activeOtp || '1234'}</strong> (හෝ 1234).
-              </p>
-            </div>
-          )}
+            <p className="text-[11px] text-emerald-700 leading-relaxed font-medium">
+              Notify.lk හරහා ඔබගේ දුරකථනයට කෙටි පණිවිඩයක් (SMS) යවන ලදී. එම 4-digit OTP කේතය පහතින් ඇතුළත් කරන්න.
+            </p>
+          </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">

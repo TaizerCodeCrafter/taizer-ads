@@ -112,8 +112,31 @@ export async function sendNotifyLkSms({ to, message, userId, apiKey, senderId = 
 }
 
 /**
+ * Strict Sri Lankan Mobile Validator
+ * Accepts:
+ * - 070, 071, 072, 074, 075, 076, 077, 078 (10 digits)
+ * - 70, 71, 72, 74, 75, 76, 77, 78 (9 digits)
+ * - 9470, 9471, 9472, 9474, 9475, 9476, 9477, 9478 (11 digits)
+ * Rejects all fake / short numbers (e.g. 5151, 1234) and landlines (011, 081, etc.)
+ */
+export function isValidSriLankanMobile(phone) {
+  if (!phone) return false;
+  let clean = phone.toString().replace(/[^0-9]/g, '');
+  if (clean.startsWith('940')) {
+    clean = clean.substring(3);
+  } else if (clean.startsWith('94')) {
+    clean = clean.substring(2);
+  } else if (clean.startsWith('0')) {
+    clean = clean.substring(1);
+  }
+  const validMobilePrefixes = ['70', '71', '72', '74', '75', '76', '77', '78'];
+  if (clean.length !== 9) return false;
+  return validMobilePrefixes.some(prefix => clean.startsWith(prefix));
+}
+
+/**
  * High-level OTP Dispatcher
- * Dispatches either real SMS (if Live mode & keys configured) or simulation test code
+ * Dispatches real SMS via Notify.lk Gateway with strict phone validation
  */
 export async function dispatchOtp({ phone, countryCode = '+94', smsConfig = {} }) {
   let cleanUserPhone = (phone || '').toString().trim();
@@ -122,39 +145,40 @@ export async function dispatchOtp({ phone, countryCode = '+94', smsConfig = {} }
   }
   const fullPhone = `${countryCode}${cleanUserPhone}`.trim();
   const normalized = normalizePhoneNumber(fullPhone);
+
+  // 1. Strict Sri Lankan Mobile Validation
+  if (!isValidSriLankanMobile(normalized)) {
+    return {
+      success: false,
+      message: 'Invalid Sri Lankan mobile number. Must be a 9 or 10-digit mobile number starting with 07X (e.g. 077 123 4567).',
+      messageSin: 'වලංගු ශ්‍රී ලාංකික ජංගම දුරකථන අංකයක් ඇතුළත් කරන්න (උදා: 077 123 4567 හෝ 77 123 4567).'
+    };
+  }
+
   const otpLength = Number(smsConfig?.otpLength) || 4;
   const otpCode = generateOtp(otpLength);
 
   const rawTemplate = smsConfig?.messageTemplate || 'Your Taizer Ads verification code is: {OTP}. Valid for 5 minutes. Do not share this code.';
   const message = rawTemplate.replace(/\{OTP\}/g, otpCode);
 
-  const isLive = Boolean(smsConfig?.isLive && smsConfig?.userId && smsConfig?.apiKey);
+  // Active Notify.lk credentials
+  const userId = smsConfig?.userId || '32931';
+  const apiKey = smsConfig?.apiKey || 'KzxrjBYwh8kWWVQywsb1';
+  const senderId = smsConfig?.senderId || 'NotifyDEMO';
 
-  if (isLive) {
-    const result = await sendNotifyLkSms({
-      to: normalized,
-      message,
-      userId: smsConfig.userId,
-      apiKey: smsConfig.apiKey,
-      senderId: smsConfig.senderId || 'NotifyDEMO'
-    });
+  const result = await sendNotifyLkSms({
+    to: normalized,
+    message,
+    userId,
+    apiKey,
+    senderId
+  });
 
-    return {
-      ...result,
-      otpCode, // Kept in memory for client verification
-      phone: normalized,
-      isLive: true,
-      timestamp: Date.now()
-    };
-  } else {
-    // Demo / Test Mode
-    return {
-      success: true,
-      isLive: false,
-      otpCode,
-      phone: normalized,
-      message: `[Test Mode] OTP generated: ${otpCode} (Or use test code: 1234)`,
-      timestamp: Date.now()
-    };
-  }
+  return {
+    ...result,
+    otpCode,
+    phone: normalized,
+    isLive: true,
+    timestamp: Date.now()
+  };
 }
