@@ -1362,6 +1362,17 @@ export default function AdminPanel({
               <span className="bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase">
                 Full Access
               </span>
+              {pendingStoryRequests.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveAdminTab('stories')}
+                  className="bg-amber-400 hover:bg-amber-300 text-black font-black text-[10px] px-2.5 py-0.5 rounded-full shadow-md animate-pulse flex items-center space-x-1 cursor-pointer transition active:scale-95"
+                  title="Click to view pending Story requests"
+                >
+                  <CircleDot className="w-3 h-3 text-black" />
+                  <span>{pendingStoryRequests.length} Story Request{pendingStoryRequests.length > 1 ? 's' : ''}</span>
+                </button>
+              )}
             </div>
             <p className="text-xs text-gray-400">Complete Real-Time Website Management Suite</p>
           </div>
@@ -1474,18 +1485,18 @@ export default function AdminPanel({
 
           <button
             onClick={() => setActiveAdminTab('stories')}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold text-xs transition whitespace-nowrap ${
+            className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl font-bold text-xs transition whitespace-nowrap ${
               activeAdminTab === 'stories'
                 ? 'bg-[#f03a5f] text-white shadow-md'
                 : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}
           >
-            <div className="flex items-center space-x-2.5">
-              <CircleDot className="w-4 h-4 text-pink-400" />
+            <div className="flex items-center space-x-2">
+              <CircleDot className={`w-4 h-4 ${activeAdminTab === 'stories' ? 'text-white' : 'text-pink-400'}`} />
               <span>Live Story Avatars</span>
             </div>
             {pendingStoryRequests.length > 0 && (
-              <span className="bg-amber-400 text-black text-[10px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
+              <span className="bg-amber-400 text-black text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse shadow-md border border-amber-200">
                 {pendingStoryRequests.length}
               </span>
             )}
