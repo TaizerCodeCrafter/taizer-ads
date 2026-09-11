@@ -1702,8 +1702,12 @@ export default function AdminPanel({
                         >
                           <div className="flex items-center space-x-3 min-w-0">
                             <img
-                              src={ad.image}
+                              src={ad.image || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80'}
                               alt=""
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80';
+                              }}
                               className="w-14 h-14 rounded-lg object-cover border border-gray-700 shrink-0"
                             />
                             <div className="min-w-0">
@@ -1833,8 +1837,12 @@ export default function AdminPanel({
                       >
                         <div className="flex items-center space-x-3">
                           <img
-                            src={ad.image}
+                            src={ad.image || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80'}
                             alt=""
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80';
+                            }}
                             className="w-14 h-14 rounded-lg object-cover border border-purple-500/30 shrink-0"
                           />
                           <div>
@@ -2045,8 +2053,12 @@ export default function AdminPanel({
                         <div className="flex items-start space-x-3.5 flex-1 min-w-0 w-full sm:w-auto">
                           <div className="relative flex-shrink-0">
                             <img
-                              src={ad.image}
+                              src={ad.image || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80'}
                               alt=""
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80';
+                              }}
                               className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover border shadow-md ${
                                 isFake ? 'border-red-500 grayscale' : validity.isExpired ? 'border-rose-500' : 'border-gray-700'
                               }`}

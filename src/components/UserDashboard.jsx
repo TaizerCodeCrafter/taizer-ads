@@ -419,21 +419,35 @@ export default function UserDashboard({
   const [republishType, setRepublishType] = useState({});
   const [republishOption, setRepublishOption] = useState({});
 
-  // Image change handler
-  const handleImageChange = (e) => {
+  // Image change handler (Compresses to Base64 so it persists permanently in MongoDB & across sessions)
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
-      const objectUrl = URL.createObjectURL(file);
-      setImagePreview(objectUrl);
+      try {
+        const compressedBase64 = await compressImageFile(file, 1200, 0.8);
+        setImagePreview(compressedBase64);
+      } catch (err) {
+        console.error('Failed to compress image:', err);
+        const reader = new FileReader();
+        reader.onload = (rev) => setImagePreview(rev.target.result);
+        reader.readAsDataURL(file);
+      }
     }
   };
 
-  const handleEditImageChange = (e) => {
+  const handleEditImageChange = async (e) => {
     const file = e.target.files?.[0];
     if (file && editingAd) {
-      const objectUrl = URL.createObjectURL(file);
-      setEditingAd({ ...editingAd, image: objectUrl });
+      try {
+        const compressedBase64 = await compressImageFile(file, 1200, 0.8);
+        setEditingAd({ ...editingAd, image: compressedBase64 });
+      } catch (err) {
+        console.error('Failed to compress edit image:', err);
+        const reader = new FileReader();
+        reader.onload = (rev) => setEditingAd({ ...editingAd, image: rev.target.result });
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -1030,8 +1044,12 @@ export default function UserDashboard({
                         {/* Compact Thumbnail */}
                         <div className="w-28 sm:w-36 h-24 sm:h-28 relative rounded-lg overflow-hidden border border-gray-200 flex-shrink-0 bg-gray-100">
                           <img
-                            src={ad.image}
+                            src={ad.image || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80'}
                             alt={ad.title}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80';
+                            }}
                             className="w-full h-full object-cover"
                           />
                           {ad.isFake || ad.status === 'Fake Ad' ? (
@@ -2510,8 +2528,12 @@ export default function UserDashboard({
                           className="w-4 h-4 text-[#f03a5f] focus:ring-0 cursor-pointer"
                         />
                         <img
-                          src={ad.image}
+                          src={ad.image || 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80'}
                           alt=""
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&auto=format&fit=crop&q=80';
+                          }}
                           className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0"
                         />
                         <div className="min-w-0 flex-1">
