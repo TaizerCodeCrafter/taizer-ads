@@ -112,12 +112,17 @@ export default function App() {
       const search = window.location.search.toLowerCase();
       const isCeoUrl = path.includes('ceo') || hash.includes('ceo') || search.includes('ceo');
 
-      if (isCeoUnlockedSaved && (savedView === 'admin' || isCeoUrl)) {
-        return 'admin';
+      // Clean up legacy/incorrect 'admin' value from savedView so root is always public feed
+      if (savedView === 'admin') {
+        localStorage.setItem('taizer_ads_current_view', 'feed');
       }
+
+      // Admin & CEO views are ONLY accessible via URL containing 'ceo' (e.g. /ceo, #ceo)
       if (isCeoUrl) {
-        return 'ceo-login';
+        return isCeoUnlockedSaved ? 'admin' : 'ceo-login';
       }
+
+      // Root path / public views always show feed or user dashboard
       if (savedUser && savedView === 'dashboard') {
         return 'dashboard';
       }
@@ -273,13 +278,17 @@ export default function App() {
       const hash = window.location.hash.toLowerCase();
       const search = window.location.search.toLowerCase();
       
-      if (path.includes('ceo') || hash.includes('ceo') || search.includes('ceo')) {
+      const isCeo = path.includes('ceo') || hash.includes('ceo') || search.includes('ceo');
+      
+      if (isCeo) {
         const unlocked = isCeoUnlocked || localStorage.getItem('taizer_ads_ceo_unlocked') === 'true';
         if (!unlocked) {
           setCurrentView('ceo-login');
         } else {
           setCurrentView('admin');
         }
+      } else {
+        setCurrentView((prev) => (prev === 'admin' || prev === 'ceo-login' ? 'feed' : prev));
       }
     };
 
@@ -470,10 +479,10 @@ export default function App() {
     }
   }, [searchQuery, activeFilterQuery]);
 
-  // Persist currentView to localStorage for seamless refresh
+  // Persist currentView to localStorage for seamless refresh (dashboard / feed only)
   useEffect(() => {
     try {
-      if (currentView === 'dashboard' || currentView === 'feed' || (currentView === 'admin' && isCeoUnlocked)) {
+      if (currentView === 'dashboard' || currentView === 'feed') {
         localStorage.setItem('taizer_ads_current_view', currentView);
       }
       if (isCeoUnlocked) {
@@ -1086,8 +1095,13 @@ export default function App() {
               setIsCeoUnlocked(true);
               try {
                 localStorage.setItem('taizer_ads_ceo_unlocked', 'true');
-                localStorage.setItem('taizer_ads_current_view', 'admin');
+                if (localStorage.getItem('taizer_ads_current_view') === 'admin') {
+                  localStorage.setItem('taizer_ads_current_view', 'feed');
+                }
               } catch (e) {}
+              if (!window.location.pathname.includes('ceo') && !window.location.hash.includes('ceo')) {
+                window.history.pushState(null, '', '/ceo');
+              }
               setCurrentView('admin');
             }}
             onExit={handleExitAdmin}
@@ -1148,7 +1162,12 @@ export default function App() {
                   onShowToast={showToast}
                   siteConfig={siteConfig}
                   isCeoUnlocked={isCeoUnlocked}
-                  onOpenAdminTab={() => setCurrentView('admin')}
+                  onOpenAdminTab={() => {
+                    if (!window.location.pathname.includes('ceo') && !window.location.hash.includes('ceo')) {
+                      window.history.pushState(null, '', '/ceo');
+                    }
+                    setCurrentView('admin');
+                  }}
                 />
               ) : currentView === 'dashboard' ? (
                 /* VIEW 4: User Dashboard & New Ad Form */
@@ -1461,6 +1480,9 @@ export default function App() {
           isCeoUnlocked={isCeoUnlocked}
           onOpenAdminBlog={() => {
             setAdminInitialTab('blog');
+            if (!window.location.pathname.includes('ceo') && !window.location.hash.includes('ceo')) {
+              window.history.pushState(null, '', '/ceo');
+            }
             setCurrentView('admin');
           }}
           onOpenPostModal={() => {
