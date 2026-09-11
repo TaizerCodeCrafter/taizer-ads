@@ -102,13 +102,38 @@ export default function App() {
     return defaultSiteConfig;
   });
   const [selectedAd, setSelectedAd] = useState(null);
-  const [currentView, setCurrentView] = useState('feed'); // 'feed' | 'detail' | 'dashboard' | 'admin' | 'ceo-login' | 'login'
+  const [currentView, setCurrentView] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('taizer_ads_current_user');
+      const savedView = localStorage.getItem('taizer_ads_current_view');
+      if (savedUser && savedView === 'dashboard') {
+        return 'dashboard';
+      }
+    } catch (e) {}
+    return 'feed';
+  });
   const [dashboardTab, setDashboardTab] = useState('new-ad');
   const [currentLang, setCurrentLang] = useState('sin'); // 'sin' | 'en'
 
-  // Authentication State
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
+  // Authentication State (Persisted in localStorage across page refreshes)
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('taizer_ads_current_user');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse saved current user', e);
+    }
+    return null;
+  });
+
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try {
+      const saved = localStorage.getItem('taizer_ads_current_user');
+      return Boolean(saved);
+    } catch (e) {
+      return false;
+    }
+  });
   const [isCeoUnlocked, setIsCeoUnlocked] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -185,6 +210,15 @@ export default function App() {
           setUsers(dbUsers);
           try {
             localStorage.setItem('taizer_ads_users', JSON.stringify(dbUsers));
+            const savedUserStr = localStorage.getItem('taizer_ads_current_user');
+            if (savedUserStr) {
+              const parsedUser = JSON.parse(savedUserStr);
+              const fresh = dbUsers.find(u => u.id === parsedUser.id || (u.phone && parsedUser.phone && u.phone.replace(/[^0-9]/g, '') === parsedUser.phone.replace(/[^0-9]/g, '')));
+              if (fresh) {
+                setCurrentUser(fresh);
+                localStorage.setItem('taizer_ads_current_user', JSON.stringify(fresh));
+              }
+            }
           } catch (e) {}
         } else {
           // If no users in MongoDB yet, seed initial mock users
@@ -304,9 +338,12 @@ export default function App() {
 
     handleUpdateUsers(updatedUsers, updatedUserObj);
 
-    // If currently logged in user is this user, also update currentUser state
+    // If currently logged in user is this user, also update currentUser state and persistence
     if (currentUser && currentUser.id === userId && updatedUserObj) {
       setCurrentUser(updatedUserObj);
+      try {
+        localStorage.setItem('taizer_ads_current_user', JSON.stringify(updatedUserObj));
+      } catch (e) {}
     }
 
     showToast(`User ${userId} credits: ${type === 'add' ? '+' : '-'}Rs. ${numAmount.toLocaleString()}.00`);
@@ -359,15 +396,23 @@ export default function App() {
 
     setIsLoggedIn(true);
     setCurrentUser(matchedUser);
+    try {
+      localStorage.setItem('taizer_ads_current_user', JSON.stringify(matchedUser));
+      localStorage.setItem('taizer_ads_current_view', 'dashboard');
+    } catch (e) {}
     setCurrentView('dashboard');
     setDashboardTab('new-ad');
     showToast(`සාදරයෙන් පිළිගනිමු ${matchedUser.name}! (Welcome)`);
   };
 
-  // User Logout handler
+  // User Logout handler (Only triggered when user clicks Logout button)
   const handleLogout = () => {
     setIsLoggedIn(false);
     setCurrentUser(null);
+    try {
+      localStorage.removeItem('taizer_ads_current_user');
+      localStorage.removeItem('taizer_ads_current_view');
+    } catch (e) {}
     setCurrentView('feed');
     showToast('ගිණුමෙන් ඉවත් විය (Logged out successfully).');
   };
@@ -386,6 +431,15 @@ export default function App() {
       setActiveFilterQuery('');
     }
   }, [searchQuery, activeFilterQuery]);
+
+  // Persist currentView to localStorage for seamless refresh
+  useEffect(() => {
+    try {
+      if (currentView === 'dashboard' || currentView === 'feed') {
+        localStorage.setItem('taizer_ads_current_view', currentView);
+      }
+    } catch (e) {}
+  }, [currentView]);
 
   const updateAdsAndPersist = (newAds) => {
     setAds(newAds);
