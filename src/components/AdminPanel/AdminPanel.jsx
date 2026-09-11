@@ -7245,7 +7245,9 @@ export default function AdminPanel({
                 <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
                   <span className="text-[10px] text-gray-400 block">Submitted At</span>
                   <span className="text-gray-400 text-[11px] block">
-                    {new Date(inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt).toLocaleString('en-GB')}
+                    {inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt
+                      ? new Date(inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt).toLocaleString('en-GB')
+                      : 'N/A'}
                   </span>
                 </div>
               </div>
