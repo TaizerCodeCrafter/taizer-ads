@@ -2032,6 +2032,13 @@ export default function AdminPanel({
                   const isFake = ad.isFake || ad.status === 'Fake Ad';
                   const validity = getAdValidity(ad);
                   const valInfo = getApprovalValidityInfo(ad.id);
+                  const adPhoneDigits = (ad.phone || ad.userPhone || '').toString().replace(/[^0-9]/g, '').slice(-9);
+                  const userAdsByPhone = adPhoneDigits
+                    ? ads.filter(a => (a.phone || a.userPhone || '').toString().replace(/[^0-9]/g, '').slice(-9) === adPhoneDigits)
+                    : [];
+                  const userTotalPostCount = userAdsByPhone.length;
+                  const userApprovedCount = userAdsByPhone.filter(a => a.status === 'Approved' || (!a.status && a.isApproved)).length;
+                  const userPendingCount = userAdsByPhone.filter(a => a.status === 'Pending Approval').length;
 
                   return (
                     <div
@@ -2157,6 +2164,25 @@ export default function AdminPanel({
                                 <Phone className="w-3 h-3 text-emerald-400" />
                                 <span>{ad.phone}</span>
                               </span>
+                              <span>•</span>
+                              <button
+                                type="button"
+                                onClick={() => setAdSearchQuery(adPhoneDigits || ad.phone)}
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold transition cursor-pointer bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 hover:border-blue-400/50 shadow-xs active:scale-95"
+                                title={`User Post History: ${userTotalPostCount} Total Posts (${userApprovedCount} Live, ${userPendingCount} Pending). Click to filter all ads by this user.`}
+                              >
+                                <Users className="w-3 h-3 text-blue-400 shrink-0" />
+                                <span>
+                                  {userTotalPostCount <= 1
+                                    ? '1st Post (නව පරිශීලක)'
+                                    : `${userTotalPostCount} Posts (පළකළ)`}
+                                </span>
+                                {userTotalPostCount > 1 && (
+                                  <span className="text-[9.5px] text-blue-200/80 font-mono font-normal">
+                                    ({userApprovedCount} Live / {userPendingCount} Pend)
+                                  </span>
+                                )}
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -7234,253 +7260,280 @@ export default function AdminPanel({
       )}
 
       {/* Payment Slip Inspection Modal (High-Fidelity Executive Suite) */}
-      {inspectingSlipAd && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-[#141e33] border border-gray-700/90 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[94vh]">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-800/90 bg-gradient-to-r from-[#0b1329] via-[#0f172a] to-[#0b1329]">
-              <div className="flex items-center space-x-3">
-                <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-[#f03a5f]">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <h3 className="font-black text-sm sm:text-base text-white">
-                      Bank Payment Slip Verification
-                    </h3>
-                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
-                      isPdfSlip(inspectingSlipAd.paymentSlip)
-                        ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                        : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
-                    }`}>
-                      {isPdfSlip(inspectingSlipAd.paymentSlip) ? '📑 PDF Document' : '🖼️ Photo / Image Slip'}
-                    </span>
+      {inspectingSlipAd && (() => {
+        const modalPhoneDigits = (inspectingSlipAd.phone || inspectingSlipAd.userPhone || '').toString().replace(/[^0-9]/g, '').slice(-9);
+        const modalUserAds = modalPhoneDigits
+          ? ads.filter(a => (a.phone || a.userPhone || '').toString().replace(/[^0-9]/g, '').slice(-9) === modalPhoneDigits)
+          : [];
+        const modalUserApproved = modalUserAds.filter(a => a.status === 'Approved' || (!a.status && a.isApproved)).length;
+        const modalUserPending = modalUserAds.filter(a => a.status === 'Pending Approval').length;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+            <div className="bg-[#141e33] border border-gray-700/90 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[94vh]">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-800/90 bg-gradient-to-r from-[#0b1329] via-[#0f172a] to-[#0b1329]">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-[#f03a5f]">
+                    <FileText className="w-5 h-5" />
                   </div>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    Ad #{inspectingSlipAd.id} • {inspectingSlipAd.title} • {inspectingSlipAd.phone}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <a
-                  href={inspectingSlipAd.paymentSlip}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hidden sm:inline-flex items-center space-x-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-xl text-xs font-bold border border-gray-700 transition"
-                  title="Open document in a separate browser tab"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>New Tab</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setInspectingSlipAd(null)}
-                  className="text-gray-400 hover:text-white p-2 rounded-xl hover:bg-gray-800/80 transition cursor-pointer"
-                  title="Close modal"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
-              {/* Slip Inspection Canvas */}
-              <div className="bg-[#070b14] border border-gray-800 rounded-2xl overflow-hidden shadow-inner flex flex-col">
-                {/* Canvas Top Action Bar */}
-                <div className="px-3.5 py-2 bg-gray-900/90 border-b border-gray-800/80 flex items-center justify-between text-xs">
-                  <div className="flex items-center space-x-2 text-gray-300 font-medium text-[11px]">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                    <span>Official Bank Deposit Receipt Preview</span>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <a
-                      href={inspectingSlipAd.paymentSlip}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-bold transition flex items-center space-x-1"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      <span>Full View</span>
-                    </a>
-                    <a
-                      href={inspectingSlipAd.paymentSlip}
-                      target="_blank"
-                      rel="noreferrer"
-                      download={`bank-slip-${inspectingSlipAd.id || 'receipt'}.${isPdfSlip(inspectingSlipAd.paymentSlip) ? 'pdf' : 'jpg'}`}
-                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-bold transition flex items-center space-x-1"
-                    >
-                      <Download className="w-3 h-3" />
-                      <span>Download</span>
-                    </a>
-                  </div>
-                </div>
-
-                {/* Canvas Viewer */}
-                <div className="h-[52vh] min-h-[380px] max-h-[540px] w-full relative flex items-center justify-center bg-gray-950">
-                  {isPdfSlip(inspectingSlipAd.paymentSlip) ? (
-                    <iframe
-                      src={inspectingSlipAd.paymentSlip}
-                      title="PDF Payment Slip"
-                      className="w-full h-full border-0 bg-white"
-                    />
-                  ) : (
-                    <div className="w-full h-full overflow-auto flex items-center justify-center p-3">
-                      <img
-                        src={inspectingSlipAd.paymentSlip}
-                        alt="Bank Payment Slip"
-                        className="max-h-[48vh] max-w-full object-contain rounded-xl shadow-2xl"
-                      />
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-black text-sm sm:text-base text-white">
+                        Bank Payment Slip Verification
+                      </h3>
+                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
+                        isPdfSlip(inspectingSlipAd.paymentSlip)
+                          ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                          : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                      }`}>
+                        {isPdfSlip(inspectingSlipAd.paymentSlip) ? '📑 PDF Document' : '🖼️ Photo / Image Slip'}
+                      </span>
                     </div>
-                  )}
+                    <p className="text-[11px] text-gray-400 mt-0.5 flex flex-wrap items-center gap-1.5">
+                      <span>Ad #{inspectingSlipAd.id}</span>
+                      <span>•</span>
+                      <span className="text-white font-medium truncate max-w-xs">{inspectingSlipAd.title}</span>
+                      <span>•</span>
+                      <span className="text-emerald-400 font-mono font-bold">{inspectingSlipAd.phone}</span>
+                      <span>•</span>
+                      <span className="text-blue-300 bg-blue-500/15 border border-blue-500/30 px-1.5 py-0.2 rounded font-bold">
+                        👤 {modalUserAds.length <= 1 ? '1st Ad (නව පරිශීලක)' : `${modalUserAds.length} Total Ads by this User`}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <a
+                    href={inspectingSlipAd.paymentSlip}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hidden sm:inline-flex items-center space-x-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-xl text-xs font-bold border border-gray-700 transition"
+                    title="Open document in a separate browser tab"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>New Tab</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setInspectingSlipAd(null)}
+                    className="text-gray-400 hover:text-white p-2 rounded-xl hover:bg-gray-800/80 transition cursor-pointer"
+                    title="Close modal"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
 
-              {/* Transaction & Ad Summary Cards (4 Metrics Grid) */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                {/* 1. Expected Amount */}
-                <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
-                  <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Amount to Verify</span>
-                  <div className="mt-1">
-                    <strong className="text-emerald-400 block font-mono text-base sm:text-lg font-black">
-                      {inspectingSlipAd.price || `Rs. ${inspectingSlipAd.paymentAmount || 1500}`}
-                    </strong>
-                    <span className="text-[10px] text-amber-300 font-medium">
-                      Status: {inspectingSlipAd.paymentStatus || 'Pending'}
-                    </span>
+              {/* Modal Body */}
+              <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+                {/* Slip Inspection Canvas */}
+                <div className="bg-[#070b14] border border-gray-800 rounded-2xl overflow-hidden shadow-inner flex flex-col">
+                  {/* Canvas Top Action Bar */}
+                  <div className="px-3.5 py-2 bg-gray-900/90 border-b border-gray-800/80 flex items-center justify-between text-xs">
+                    <div className="flex items-center space-x-2 text-gray-300 font-medium text-[11px]">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                      <span>Official Bank Deposit Receipt Preview</span>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <a
+                        href={inspectingSlipAd.paymentSlip}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-bold transition flex items-center space-x-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>Full View</span>
+                      </a>
+                      <a
+                        href={inspectingSlipAd.paymentSlip}
+                        target="_blank"
+                        rel="noreferrer"
+                        download={`bank-slip-${inspectingSlipAd.id || 'receipt'}.${isPdfSlip(inspectingSlipAd.paymentSlip) ? 'pdf' : 'jpg'}`}
+                        className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-bold transition flex items-center space-x-1"
+                      >
+                        <Download className="w-3 h-3" />
+                        <span>Download</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Canvas Viewer */}
+                  <div className="h-[52vh] min-h-[380px] max-h-[540px] w-full relative flex items-center justify-center bg-gray-950">
+                    {isPdfSlip(inspectingSlipAd.paymentSlip) ? (
+                      <iframe
+                        src={inspectingSlipAd.paymentSlip}
+                        title="PDF Payment Slip"
+                        className="w-full h-full border-0 bg-white"
+                      />
+                    ) : (
+                      <div className="w-full h-full overflow-auto flex items-center justify-center p-3">
+                        <img
+                          src={inspectingSlipAd.paymentSlip}
+                          alt="Bank Payment Slip"
+                          className="max-h-[48vh] max-w-full object-contain rounded-xl shadow-2xl"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* 2. Payment Method & Ref */}
-                <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
-                  <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Payment Method</span>
-                  <div className="mt-1">
-                    <strong className="text-blue-400 block font-bold truncate">
-                      {inspectingSlipAd.paymentMethod || 'Bank Transfer'}
-                    </strong>
-                    <span className="text-[10px] text-gray-300 font-mono block truncate">
-                      Ref: <span className="text-amber-300 font-bold">{inspectingSlipAd.paymentRef || 'Not specified'}</span>
-                    </span>
+                {/* Transaction & Ad Summary Cards (4 Metrics Grid) */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  {/* 1. Expected Amount */}
+                  <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
+                    <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Amount to Verify</span>
+                    <div className="mt-1">
+                      <strong className="text-emerald-400 block font-mono text-base sm:text-lg font-black">
+                        {inspectingSlipAd.price || `Rs. ${inspectingSlipAd.paymentAmount || 1500}`}
+                      </strong>
+                      <span className="text-[10px] text-amber-300 font-medium">
+                        Status: {inspectingSlipAd.paymentStatus || 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 2. Payment Method & Ref */}
+                  <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
+                    <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Payment Method</span>
+                    <div className="mt-1">
+                      <strong className="text-blue-400 block font-bold truncate">
+                        {inspectingSlipAd.paymentMethod || 'Bank Transfer'}
+                      </strong>
+                      <span className="text-[10px] text-gray-300 font-mono block truncate">
+                        Ref: <span className="text-amber-300 font-bold">{inspectingSlipAd.paymentRef || 'Not specified'}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 3. Advertiser Contact & Post History */}
+                  <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Advertiser Contact</span>
+                      <span className="text-[10px] font-black text-blue-300 bg-blue-500/15 border border-blue-500/30 px-1.5 py-0.5 rounded-md">
+                        {modalUserAds.length <= 1 ? '1st Post (New)' : `${modalUserAds.length} Posts Total`}
+                      </span>
+                    </div>
+                    <div className="mt-1">
+                      <strong className="text-white block font-mono font-bold text-sm">
+                        {inspectingSlipAd.phone}
+                      </strong>
+                      <div className="flex items-center justify-between mt-1 pt-1 border-t border-gray-800/80">
+                        <a
+                          href={`https://wa.me/${(inspectingSlipAd.phone || '').replace(/[^0-9]/g, '')}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-emerald-400 hover:underline flex items-center space-x-1"
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          <span>WhatsApp</span>
+                        </a>
+                        <span className="text-[9.5px] text-gray-400 font-medium">
+                          {modalUserApproved} Live • {modalUserPending} Pend
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Submission Details */}
+                  <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
+                    <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Submitted Date</span>
+                    <div className="mt-1">
+                      <span className="text-gray-300 text-[11px] block font-medium">
+                        {inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt
+                          ? new Date(inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt).toLocaleString('en-GB')
+                          : 'N/A'}
+                      </span>
+                      <span className="text-[10px] text-purple-300 font-bold block mt-0.5">
+                        Badge: {inspectingSlipAd.badgeType}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* 3. Advertiser Contact */}
-                <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
-                  <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Advertiser Contact</span>
-                  <div className="mt-1">
-                    <strong className="text-white block font-mono font-bold">
-                      {inspectingSlipAd.phone}
-                    </strong>
-                    <a
-                      href={`https://wa.me/${(inspectingSlipAd.phone || '').replace(/[^0-9]/g, '')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[10px] text-emerald-400 hover:underline flex items-center space-x-1 mt-0.5"
-                    >
-                      <MessageCircle className="w-3 h-3" />
-                      <span>Chat on WhatsApp</span>
-                    </a>
+                {/* Validity Days Picker for Approval */}
+                <div className="bg-[#0b1329] border border-gray-800 p-3.5 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-300 flex items-center space-x-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Select Approval Validity Period (වලංගු කාලය තෝරන්න):</span>
+                    </span>
+                    <span className="text-xs font-mono font-bold text-emerald-400">
+                      Selected: {slipValidityDays} Days
+                    </span>
                   </div>
-                </div>
-
-                {/* 4. Submission Details */}
-                <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
-                  <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Submitted Date</span>
-                  <div className="mt-1">
-                    <span className="text-gray-300 text-[11px] block font-medium">
-                      {inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt
-                        ? new Date(inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt).toLocaleString('en-GB')
-                        : 'N/A'}
-                    </span>
-                    <span className="text-[10px] text-purple-300 font-bold block mt-0.5">
-                      Badge: {inspectingSlipAd.badgeType}
-                    </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[1, 3, 5, 7, 10, 15, 30, 60, 90].map(d => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setSlipValidityDays(d)}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                          slipValidityDays === d
+                            ? 'bg-[#f03a5f] text-white shadow-md shadow-red-950/50 scale-105'
+                            : 'bg-gray-800/90 text-gray-400 hover:text-white hover:bg-gray-700'
+                        }`}
+                      >
+                        {d} Days
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* Validity Days Picker for Approval */}
-              <div className="bg-[#0b1329] border border-gray-800 p-3.5 rounded-xl space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-300 flex items-center space-x-1.5">
-                    <Clock className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Select Approval Validity Period (වලංගු කාලය තෝරන්න):</span>
-                  </span>
-                  <span className="text-xs font-mono font-bold text-emerald-400">
-                    Selected: {slipValidityDays} Days
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {[1, 3, 5, 7, 10, 15, 30, 60, 90].map(d => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setSlipValidityDays(d)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                        slipValidityDays === d
-                          ? 'bg-[#f03a5f] text-white shadow-md shadow-red-950/50 scale-105'
-                          : 'bg-gray-800/90 text-gray-400 hover:text-white hover:bg-gray-700'
-                      }`}
-                    >
-                      {d} Days
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer Actions */}
-            <div className="p-4 border-t border-gray-800/90 bg-[#0b1329] flex flex-wrap items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={async () => {
-                  const reason = await showPrompt({
-                    title: 'Reject Payment Slip',
-                    titleSin: 'රිසිට්පත ප්‍රතික්ෂේප කිරීම',
-                    message: 'Enter reason for rejecting this payment slip:',
-                    messageSin: 'රිසිට්පත ප්‍රතික්ෂේප කිරීමට හේතුව ඇතුළත් කරන්න:',
-                    defaultValue: 'Invalid or unclear bank payment slip',
-                    placeholder: 'e.g. Slip is unreadable / incorrect deposit amount',
-                    confirmText: 'Reject Slip',
-                    cancelText: 'Cancel'
-                  });
-                  if (reason) {
-                    onRejectAd && onRejectAd(inspectingSlipAd.id, reason);
-                    setInspectingSlipAd(null);
-                  }
-                }}
-                className="px-4 py-2.5 bg-red-950/60 hover:bg-red-900/90 text-red-300 border border-red-800/80 rounded-xl text-xs font-bold transition flex items-center space-x-2 cursor-pointer shadow-sm"
-              >
-                <XCircle className="w-4 h-4" />
-                <span>Reject Slip / Invalid (ප්‍රතික්ෂේප කරන්න)</span>
-              </button>
-
-              <div className="flex items-center space-x-2.5">
+              {/* Modal Footer Actions */}
+              <div className="p-4 border-t border-gray-800/90 bg-[#0b1329] flex flex-wrap items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => setInspectingSlipAd(null)}
-                  className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold transition cursor-pointer"
-                >
-                  Close (වසන්න)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onApproveAd && onApproveAd(inspectingSlipAd.id, slipValidityDays);
-                    setInspectingSlipAd(null);
+                  onClick={async () => {
+                    const reason = await showPrompt({
+                      title: 'Reject Payment Slip',
+                      titleSin: 'රිසිට්පත ප්‍රතික්ෂේප කිරීම',
+                      message: 'Enter reason for rejecting this payment slip:',
+                      messageSin: 'රිසිට්පත ප්‍රතික්ෂේප කිරීමට හේතුව ඇතුළත් කරන්න:',
+                      defaultValue: 'Invalid or unclear bank payment slip',
+                      placeholder: 'e.g. Slip is unreadable / incorrect deposit amount',
+                      confirmText: 'Reject Slip',
+                      cancelText: 'Cancel'
+                    });
+                    if (reason) {
+                      onRejectAd && onRejectAd(inspectingSlipAd.id, reason);
+                      setInspectingSlipAd(null);
+                    }
                   }}
-                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-xl text-xs font-black shadow-lg shadow-green-950/50 transition flex items-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-95"
+                  className="px-4 py-2.5 bg-red-950/60 hover:bg-red-900/90 text-red-300 border border-red-800/80 rounded-xl text-xs font-bold transition flex items-center space-x-2 cursor-pointer shadow-sm"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>✓ Verify Payment & Approve Ad ({slipValidityDays} Days)</span>
+                  <XCircle className="w-4 h-4" />
+                  <span>Reject Slip / Invalid (ප්‍රතික්ෂේප කරන්න)</span>
                 </button>
+
+                <div className="flex items-center space-x-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setInspectingSlipAd(null)}
+                    className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    Close (වසන්න)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onApproveAd && onApproveAd(inspectingSlipAd.id, slipValidityDays);
+                      setInspectingSlipAd(null);
+                    }}
+                    className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-xl text-xs font-black shadow-lg shadow-green-950/50 transition flex items-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-95"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>✓ Verify Payment & Approve Ad ({slipValidityDays} Days)</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
