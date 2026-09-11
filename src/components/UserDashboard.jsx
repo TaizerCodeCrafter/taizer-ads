@@ -1492,7 +1492,7 @@ export default function UserDashboard({
                     }`}
                   >
                     <Wallet className="w-3.5 h-3.5" />
-                    <span>Pay with Credits (Rs. {normalPrice.toLocaleString()})</span>
+                    <span>Pay with your wallet (Rs. {normalPrice.toLocaleString()})</span>
                   </button>
                   <a
                     href={`https://wa.me/${adminWhatsapp}?text=Hello%20Taizer%20Ads,%20I%20want%20to%20activate%20Normal%20Ad%20(Rs.%20${normalPrice.toLocaleString()}.00)`}
@@ -1568,7 +1568,7 @@ export default function UserDashboard({
                     }`}
                   >
                     <Wallet className="w-3.5 h-3.5" />
-                    <span>Pay with Credits (Rs. {superPrice.toLocaleString()})</span>
+                    <span>Pay with your wallet (Rs. {superPrice.toLocaleString()})</span>
                   </button>
                   <a
                     href={`https://wa.me/${adminWhatsapp}?text=Hello%20Taizer%20Ads,%20I%20want%20to%20activate%20Super%20Ad%20(Rs.%20${superPrice.toLocaleString()}.00)`}
@@ -1640,7 +1640,7 @@ export default function UserDashboard({
                     }`}
                   >
                     <Wallet className="w-3.5 h-3.5" />
-                    <span>Pay with Credits (Rs. {vipPrice.toLocaleString()})</span>
+                    <span>Pay with your wallet (Rs. {vipPrice.toLocaleString()})</span>
                   </button>
                   <a
                     href={`https://wa.me/${adminWhatsapp}?text=Hello%20Taizer%20Ads,%20I%20want%20to%20activate%20VIP%20Ad%20(Rs.%20${vipPrice.toLocaleString()}.00)`}
