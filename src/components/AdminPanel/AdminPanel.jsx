@@ -13,6 +13,7 @@ import {
   Trash2,
   Edit,
   ExternalLink,
+  Download,
   FileText,
   PlusCircle,
   Eye,
@@ -2027,182 +2028,270 @@ export default function AdminPanel({
                   return (
                     <div
                       key={ad.id}
-                      className={`bg-[#1e293b] border rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition ${
+                      className={`border rounded-2xl p-4 sm:p-5 transition-all duration-200 shadow-xl flex flex-col gap-3.5 ${
                         isFake 
-                          ? 'border-red-600/70 bg-red-950/20 hover:border-red-500' 
+                          ? 'border-red-600/70 bg-gradient-to-b from-red-950/30 to-[#141e33] hover:border-red-500' 
                           : validity.isExpired
-                          ? 'border-rose-800/60 bg-rose-950/10 hover:border-rose-600'
+                          ? 'border-rose-800/60 bg-gradient-to-b from-rose-950/20 to-[#141e33] hover:border-rose-600'
                           : ad.renewalStatus === 'requested'
-                          ? 'border-purple-800/70 bg-purple-950/10 hover:border-purple-600'
-                          : 'border-gray-800 hover:border-gray-700'
+                          ? 'border-purple-800/70 bg-gradient-to-b from-purple-950/20 to-[#141e33] hover:border-purple-600'
+                          : isPending
+                          ? 'border-amber-500/40 bg-gradient-to-b from-amber-950/15 via-[#16223b] to-[#141e33] hover:border-amber-500/70 shadow-amber-950/20'
+                          : 'border-gray-800/90 hover:border-gray-700/90 bg-[#141e33]'
                       }`}
                     >
-                      <div className="flex items-start space-x-3.5 flex-1 min-w-0">
-                        <div className="relative flex-shrink-0">
-                          <img
-                            src={ad.image}
-                            alt=""
-                            className={`w-16 h-16 rounded-xl object-cover border ${
-                              isFake ? 'border-red-500 grayscale' : validity.isExpired ? 'border-rose-500' : 'border-gray-700'
-                            }`}
-                          />
-                          {isFake ? (
-                            <span className="absolute inset-0 bg-red-950/70 flex items-center justify-center rounded-xl font-black text-[10px] text-white rotate-[-12deg] tracking-wider uppercase">
-                              🚫 FAKE
-                            </span>
-                          ) : validity.isExpired ? (
-                            <span className="absolute inset-0 bg-rose-950/80 flex items-center justify-center rounded-xl font-black text-[9px] text-white text-center px-1 uppercase">
-                              ⏰ EXPIRED
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <div className="space-y-1.5 min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[10px] font-mono text-gray-400 bg-gray-900 px-1.5 py-0.5 rounded">
-                              #{ad.id}
-                            </span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                              ad.badgeType === 'VIP Ad'
-                                ? 'bg-red-500/20 text-red-400'
-                                : ad.badgeType === 'Super Ad'
-                                ? 'bg-amber-500/20 text-amber-400'
-                                : 'bg-blue-500/20 text-blue-400'
-                            }`}>
-                              {ad.badgeType}
-                            </span>
-
+                      {/* Top Row: Thumbnail + Main Meta + Top Actions */}
+                      <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                        <div className="flex items-start space-x-3.5 flex-1 min-w-0 w-full sm:w-auto">
+                          <div className="relative flex-shrink-0">
+                            <img
+                              src={ad.image}
+                              alt=""
+                              className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover border shadow-md ${
+                                isFake ? 'border-red-500 grayscale' : validity.isExpired ? 'border-rose-500' : 'border-gray-700'
+                              }`}
+                            />
                             {isFake ? (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-red-600 text-white shadow-xs border border-red-400 flex items-center space-x-1 animate-pulse">
-                                <AlertTriangle className="w-3 h-3 text-white" />
-                                <span>Fake Ad (ව්‍යාජයි)</span>
+                              <span className="absolute inset-0 bg-red-950/80 flex items-center justify-center rounded-xl font-black text-[10px] text-white rotate-[-12deg] tracking-wider uppercase shadow">
+                                🚫 FAKE
                               </span>
                             ) : validity.isExpired ? (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-rose-600 text-white shadow-xs border border-rose-400 flex items-center space-x-1">
-                                <Clock className="w-3 h-3" />
-                                <span>⏰ Expired (කල් ඉකුත් විය)</span>
+                              <span className="absolute inset-0 bg-rose-950/85 flex items-center justify-center rounded-xl font-black text-[9px] text-white text-center px-1 uppercase shadow">
+                                ⏰ EXPIRED
                               </span>
-                            ) : (
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                                isPending ? 'bg-amber-500/20 text-amber-300' : 'bg-green-500/20 text-green-300'
-                              }`}>
-                                {ad.status || 'Approved'}
-                              </span>
-                            )}
-
-                            {/* Validity remaining countdown / Expiry date */}
-                            {!isPending && !isFake && (
-                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded flex items-center gap-1 ${
-                                validity.isExpired
-                                  ? 'bg-rose-950/60 text-rose-300 border border-rose-800'
-                                  : validity.daysRemaining <= 2
-                                  ? 'bg-amber-950/60 text-amber-300 border border-amber-800'
-                                  : 'bg-gray-800 text-gray-300 border border-gray-700'
-                              }`}>
-                                <Calendar className="w-3 h-3 text-gray-400" />
-                                <span>
-                                  {validity.isExpired
-                                    ? `Expired on ${validity.formattedExpiry}`
-                                    : `Valid: ${validity.daysRemaining}d left (${validity.formattedExpiry})`}
-                                </span>
-                              </span>
-                            )}
-
-                            {/* Renewal requested badge */}
-                            {ad.renewalStatus === 'requested' && (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-purple-600 text-white border border-purple-400 flex items-center space-x-1 animate-pulse">
-                                <RefreshCw className="w-3 h-3" />
-                                <span>
-                                  Renewal Req: +{ad.renewalDaysRequested || 5} Days ({ad.renewalPaidWithCredits ? 'Credits' : 'WhatsApp Slip'})
-                                </span>
-                              </span>
-                            )}
+                            ) : null}
                           </div>
 
-                          <h4 className="font-extrabold text-sm text-white line-clamp-1">
-                            {ad.title}
-                          </h4>
-
-                          <p className="text-xs text-gray-400">
-                            {ad.location || 'Colombo'} • {ad.price} • Phone: {ad.phone}
-                          </p>
-
-                          {/* Payment & Bank Slip Info Row */}
-                          <div className="flex flex-wrap items-center gap-2 pt-1">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
-                              ad.paymentStatus === 'Verified' || ad.paymentStatus === 'Paid via Wallet'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                                : ad.paymentStatus === 'Rejected'
-                                ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                            }`}>
-                              <CreditCard className="w-3 h-3" />
-                              <span>
-                                {ad.paymentMethod || 'Bank Transfer'}: {ad.paymentStatus || 'Pending Verification'} ({ad.price || `Rs. ${ad.paymentAmount || 1500}`})
+                          <div className="space-y-1.5 min-w-0 flex-1">
+                            {/* Badges and tags */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] font-mono font-bold text-gray-400 bg-gray-900 border border-gray-800 px-2 py-0.5 rounded-md">
+                                #{ad.id}
                               </span>
-                            </span>
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
+                                ad.badgeType === 'VIP Ad'
+                                  ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                  : ad.badgeType === 'Super Ad'
+                                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                  : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                              }`}>
+                                {ad.badgeType}
+                              </span>
 
-                            {ad.paymentSlip && (
-                              <button
-                                type="button"
-                                onClick={() => setInspectingSlipAd(ad)}
-                                className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-400 text-[10px] font-black px-2.5 py-1 rounded-lg flex items-center space-x-1.5 transition cursor-pointer shadow-sm animate-pulse"
-                              >
-                                <FileText className="w-3.5 h-3.5" />
-                                <span>
-                                  {isPdfSlip(ad.paymentSlip)
-                                    ? '📑 View PDF Receipt (PDF රිසිට්පත)'
-                                    : '📄 View Payment Slip (රිසිට්පත බලන්න)'}
+                              {isFake ? (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-red-600 text-white shadow-xs border border-red-400 flex items-center space-x-1 animate-pulse">
+                                  <AlertTriangle className="w-3 h-3 text-white" />
+                                  <span>Fake Ad (ව්‍යාජයි)</span>
                                 </span>
-                              </button>
-                            )}
+                              ) : validity.isExpired ? (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-600 text-white shadow-xs border border-rose-400 flex items-center space-x-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span>⏰ Expired (කල් ඉකුත් විය)</span>
+                                </span>
+                              ) : (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                  isPending ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                }`}>
+                                  {ad.status || 'Approved'}
+                                </span>
+                              )}
 
-                            {ad.paymentRef && (
-                              <span className="text-[10px] text-gray-300 bg-gray-900 border border-gray-700 px-1.5 py-0.5 rounded">
-                                Ref: {ad.paymentRef}
-                              </span>
-                            )}
+                              {/* Validity remaining countdown / Expiry date */}
+                              {!isPending && !isFake && (
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                                  validity.isExpired
+                                    ? 'bg-rose-950/60 text-rose-300 border border-rose-800'
+                                    : validity.daysRemaining <= 2
+                                    ? 'bg-amber-950/60 text-amber-300 border border-amber-800'
+                                    : 'bg-gray-800/90 text-gray-300 border border-gray-700'
+                                }`}>
+                                  <Calendar className="w-3 h-3 text-gray-400" />
+                                  <span>
+                                    {validity.isExpired
+                                      ? `Expired on ${validity.formattedExpiry}`
+                                      : `Valid: ${validity.daysRemaining}d left (${validity.formattedExpiry})`}
+                                  </span>
+                                </span>
+                              )}
 
-                            {ad.rejectionReason && (
-                              <span className="text-[10px] text-red-300 bg-red-950/60 border border-red-800 px-1.5 py-0.5 rounded">
-                                Reason: {ad.rejectionReason}
+                              {/* Renewal requested badge */}
+                              {ad.renewalStatus === 'requested' && (
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-600 text-white border border-purple-400 flex items-center space-x-1 animate-pulse">
+                                  <RefreshCw className="w-3 h-3" />
+                                  <span>
+                                    Renewal Req: +{ad.renewalDaysRequested || 5} Days ({ad.renewalPaidWithCredits ? 'Credits' : 'WhatsApp Slip'})
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Ad Title */}
+                            <h4 className="font-black text-sm sm:text-base text-white line-clamp-1">
+                              {ad.title}
+                            </h4>
+
+                            {/* Meta items */}
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-gray-500" />
+                                <span>{ad.location || 'Colombo'}</span>
                               </span>
-                            )}
+                              <span>•</span>
+                              <span className="font-bold text-amber-300">
+                                {ad.price || 'Negotiable'}
+                              </span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1 text-gray-300">
+                                <Phone className="w-3 h-3 text-emerald-400" />
+                                <span>{ad.phone}</span>
+                              </span>
+                            </div>
                           </div>
+                        </div>
 
-                          {validity.isExpired && !isFake && (
-                            <p className="text-[11px] text-rose-400 font-semibold flex items-center space-x-1">
-                              <span>⚠️ වලංගු කාලය අවසන් වී ඇති බැවින් Public Feed එකෙන් ඉවත් කර ඇත. නැවත සක්‍රීය කිරීමට +Days ලබා දෙන්න.</span>
-                            </p>
-                          )}
-                          {isFake && (
-                            <p className="text-[11px] text-red-400 font-semibold flex items-center space-x-1">
-                              <span>⚠️ Marked as Scam / Fake Ad. Hidden from normal feed, visible under Fake Ads category.</span>
-                            </p>
-                          )}
+                        {/* Top quick actions */}
+                        <div className="flex items-center space-x-1.5 self-end sm:self-start shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setEditingAd(ad)}
+                            className="bg-gray-800/90 hover:bg-gray-700 text-gray-200 hover:text-white text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center space-x-1 border border-gray-700 transition cursor-pointer"
+                            title="Edit advertisement details"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                            <span>Edit</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const confirmed = await showConfirm({
+                                title: 'Delete Advertisement',
+                                titleSin: 'දැන්වීම ඉවත් කිරීම',
+                                message: `Are you sure you want to permanently delete advertisement #${ad.id} ("${ad.title}")?`,
+                                messageSin: `දැන්වීම #${ad.id} ස්ථිරවම ඉවත් කිරීමට ඔබට සහතිකද?`,
+                                type: 'danger',
+                                confirmText: 'Delete Ad (ඉවත් කරන්න)',
+                                cancelText: 'Cancel (අවලංගු කරන්න)'
+                              });
+                              if (confirmed) {
+                                onDeleteAd(ad.id);
+                                onShowToast && onShowToast(`Ad #${ad.id} deleted.`);
+                              }
+                            }}
+                            className="bg-red-950/40 hover:bg-red-900/80 text-red-300 border border-red-900/60 text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center space-x-1 transition cursor-pointer"
+                            title="Permanently delete ad"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
 
-                      {/* Admin Actions for this Ad */}
-                      <div className="flex flex-wrap items-center gap-2 self-end md:self-center">
+                      {/* Dedicated Payment & Slip Verification Bar */}
+                      <div className="p-3 rounded-xl bg-[#0b1329]/95 border border-gray-800/90 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-inner">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          {/* Payment Method & Expected Price */}
+                          <div className="flex items-center space-x-1.5 bg-gray-900/90 border border-gray-700/80 px-2.5 py-1 rounded-lg">
+                            <CreditCard className="w-3.5 h-3.5 text-blue-400" />
+                            <span className="text-gray-300 font-semibold">{ad.paymentMethod || 'Bank Transfer'}</span>
+                            <span className="text-gray-600">•</span>
+                            <span className="font-mono font-bold text-emerald-400">
+                              {ad.price || `Rs. ${ad.paymentAmount || 1500}`}
+                            </span>
+                          </div>
+
+                          {/* Payment Status Pill */}
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-[11px] ${
+                            ad.paymentStatus === 'Verified' || ad.paymentStatus === 'Paid via Wallet'
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : ad.paymentStatus === 'Rejected'
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          }`}>
+                            {ad.paymentStatus === 'Verified' || ad.paymentStatus === 'Paid via Wallet' ? (
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            ) : (
+                              <Clock className="w-3.5 h-3.5" />
+                            )}
+                            <span>{ad.paymentStatus || 'Pending Verification'}</span>
+                          </span>
+
+                          {/* Bank Reference */}
+                          {ad.paymentRef && (
+                            <span className="inline-flex items-center gap-1 bg-gray-900 border border-gray-700 px-2 py-1 rounded-lg text-[11px] text-gray-300">
+                              <span className="text-gray-500 font-normal">Ref:</span>
+                              <span className="font-mono font-bold text-amber-300">{ad.paymentRef}</span>
+                            </span>
+                          )}
+
+                          {/* Rejection Reason */}
+                          {ad.rejectionReason && (
+                            <span className="inline-flex items-center gap-1 bg-rose-950/60 border border-rose-800 px-2.5 py-1 rounded-lg text-[11px] text-rose-300">
+                              <AlertOctagon className="w-3 h-3 text-rose-400 shrink-0" />
+                              <span>Reason: {ad.rejectionReason}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Dedicated Payment Slip Button */}
+                        {ad.paymentSlip ? (
+                          <button
+                            type="button"
+                            onClick={() => setInspectingSlipAd(ad)}
+                            className={`inline-flex items-center justify-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black transition-all duration-200 cursor-pointer shadow-md hover:scale-[1.02] active:scale-95 shrink-0 ${
+                              isPdfSlip(ad.paymentSlip)
+                                ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-600 text-white shadow-red-950/60 border border-red-400/50'
+                                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-600 text-white shadow-blue-950/60 border border-blue-400/50'
+                            }`}
+                          >
+                            <FileText className="w-4 h-4 shrink-0" />
+                            <span>
+                              {isPdfSlip(ad.paymentSlip)
+                                ? '📑 View PDF Receipt (PDF රිසිට්පත)'
+                                : '📄 View Payment Slip (රිසිට්පත)'}
+                            </span>
+                            <ExternalLink className="w-3.5 h-3.5 opacity-80 shrink-0" />
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-gray-500 italic px-2 py-1">
+                            No Bank Slip Uploaded (Wallet / Direct)
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Warnings if Expired or Fake */}
+                      {validity.isExpired && !isFake && (
+                        <p className="text-[11px] text-rose-400 font-semibold flex items-center space-x-1.5 bg-rose-950/30 border border-rose-900/50 p-2 rounded-xl">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>වලංගු කාලය අවසන් වී ඇති බැවින් Public Feed එකෙන් ඉවත් කර ඇත. නැවත සක්‍රීය කිරීමට +Days ලබා දෙන්න.</span>
+                        </p>
+                      )}
+                      {isFake && (
+                        <p className="text-[11px] text-red-400 font-semibold flex items-center space-x-1.5 bg-red-950/30 border border-red-900/50 p-2 rounded-xl">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>Marked as Scam / Fake Ad. Hidden from normal feed, visible under Fake Ads category.</span>
+                        </p>
+                      )}
+
+                      {/* Bottom Administrative Actions Bar */}
+                      <div className="pt-2 border-t border-gray-800/80 flex flex-wrap items-center justify-between gap-3">
                         {/* If Renewal requested, prioritize Approve Renewal button */}
                         {ad.renewalStatus === 'requested' && (
                           <button
                             onClick={() => onRenewAd && onRenewAd(ad.id, ad.renewalDaysRequested || 5)}
-                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-black px-3 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition active:scale-95 cursor-pointer"
+                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-black px-3.5 py-1.5 rounded-xl flex items-center space-x-1.5 shadow-md transition active:scale-95 cursor-pointer"
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <CheckCircle2 className="w-4 h-4" />
                             <span>✓ Approve Renewal (+{ad.renewalDaysRequested || 5}d)</span>
                           </button>
                         )}
 
                         {isPending ? (
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2.5 w-full">
                             {/* Duration Presets + Custom Days + Date Picker */}
-                            <div className="flex flex-wrap items-center gap-1 bg-gray-900 border border-gray-700 p-1.5 rounded-xl text-xs">
-                              <span className="text-[10px] text-gray-400 font-bold px-1 flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-amber-400" />
-                                <span>Days:</span>
+                            <div className="flex flex-wrap items-center gap-1.5 bg-gray-900 border border-gray-700/80 p-1.5 rounded-xl text-xs">
+                              <span className="text-[11px] text-gray-400 font-bold px-1.5 flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Duration:</span>
                               </span>
 
                               {[1, 3, 5, 7, 10, 15, 30].map(d => (
@@ -2210,10 +2299,10 @@ export default function AdminPanel({
                                   key={d}
                                   type="button"
                                   onClick={() => setApprovalValidityMap(prev => ({ ...prev, [ad.id]: d }))}
-                                  className={`px-1.5 py-0.5 rounded text-[10px] font-black transition cursor-pointer ${
+                                  className={`px-2 py-0.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
                                     !valInfo.isDateMode && valInfo.days === d
                                       ? 'bg-[#f03a5f] text-white shadow-xs'
-                                      : 'text-gray-400 hover:text-white'
+                                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
                                   }`}
                                 >
                                   {d}d
@@ -2221,8 +2310,8 @@ export default function AdminPanel({
                               ))}
 
                               {/* Custom Days Input */}
-                              <div className="flex items-center space-x-1 bg-black/40 border border-gray-700 rounded px-1.5 py-0.5" title="Enter any custom number of days">
-                                <span className="text-[9px] text-gray-400">Custom:</span>
+                              <div className="flex items-center space-x-1 bg-black/50 border border-gray-700 rounded-lg px-2 py-0.5" title="Enter any custom number of days">
+                                <span className="text-[10px] text-gray-400">Custom:</span>
                                 <input
                                   type="number"
                                   min="1"
@@ -2232,14 +2321,14 @@ export default function AdminPanel({
                                     const v = Math.max(1, parseInt(e.target.value) || 1);
                                     setApprovalValidityMap(prev => ({ ...prev, [ad.id]: v }));
                                   }}
-                                  className="w-10 bg-transparent text-center text-[10.5px] text-amber-300 font-black focus:outline-none"
+                                  className="w-10 bg-transparent text-center text-xs text-amber-300 font-black focus:outline-none"
                                 />
-                                <span className="text-[9px] text-gray-400">d</span>
+                                <span className="text-[10px] text-gray-400">d</span>
                               </div>
 
                               {/* Calendar Date Picker */}
-                              <div className="flex items-center space-x-1 bg-black/40 border border-gray-700 rounded px-1.5 py-0.5" title="Pick exact expiration date from calendar">
-                                <Calendar className="w-3 h-3 text-amber-400 shrink-0" />
+                              <div className="flex items-center space-x-1 bg-black/50 border border-gray-700 rounded-lg px-2 py-0.5" title="Pick exact expiration date from calendar">
+                                <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                                 <input
                                   type="date"
                                   min={formatDateForDateInput(new Date())}
@@ -2249,53 +2338,69 @@ export default function AdminPanel({
                                       setApprovalValidityMap(prev => ({ ...prev, [ad.id]: e.target.value }));
                                     }
                                   }}
-                                  className="bg-transparent text-[10px] text-gray-300 focus:outline-none cursor-pointer"
+                                  className="bg-transparent text-[11px] text-gray-300 focus:outline-none cursor-pointer"
                                 />
                               </div>
                             </div>
 
-                            <button
-                              onClick={() => onApproveAd(ad.id, valInfo.raw)}
-                              className="bg-green-600 hover:bg-green-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition active:scale-95 cursor-pointer"
-                              title={`Auto-expires on ${valInfo.formattedExpiry}`}
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Approve ({valInfo.days}d • {valInfo.formattedExpiry})</span>
-                            </button>
+                            <div className="flex items-center space-x-2 ml-auto">
+                              <button
+                                onClick={() => onApproveAd(ad.id, valInfo.raw)}
+                                className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white text-xs font-black px-4 py-2 rounded-xl flex items-center space-x-1.5 shadow-md shadow-green-950/40 transition active:scale-95 cursor-pointer"
+                                title={`Auto-expires on ${valInfo.formattedExpiry}`}
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>Approve & Activate ({valInfo.days}d)</span>
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const reason = await showPrompt({
-                                  title: 'Reject Advertisement',
-                                  titleSin: 'දැන්වීම ප්‍රතික්ෂේප කිරීම',
-                                  message: 'Enter reason for rejecting this ad / payment slip:',
-                                  messageSin: 'දැන්වීම හෝ රිසිට්පත ප්‍රතික්ෂේප කිරීමට හේතුව ඇතුළත් කරන්න:',
-                                  defaultValue: 'Invalid or unclear bank payment slip',
-                                  placeholder: 'e.g. Slip is unreadable / incorrect deposit amount',
-                                  confirmText: 'Reject Ad',
-                                  cancelText: 'Cancel'
-                                });
-                                if (reason) {
-                                  onRejectAd && onRejectAd(ad.id, reason);
-                                }
-                              }}
-                              className="bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition cursor-pointer"
-                              title="Reject ad and payment slip"
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              <span>Reject</span>
-                            </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const reason = await showPrompt({
+                                    title: 'Reject Advertisement',
+                                    titleSin: 'දැන්වීම ප්‍රතික්ෂේප කිරීම',
+                                    message: 'Enter reason for rejecting this ad / payment slip:',
+                                    messageSin: 'දැන්වීම හෝ රිසිට්පත ප්‍රතික්ෂේප කිරීමට හේතුව ඇතුළත් කරන්න:',
+                                    defaultValue: 'Invalid or unclear bank payment slip',
+                                    placeholder: 'e.g. Slip is unreadable / incorrect deposit amount',
+                                    confirmText: 'Reject Ad',
+                                    cancelText: 'Cancel'
+                                  });
+                                  if (reason) {
+                                    onRejectAd && onRejectAd(ad.id, reason);
+                                  }
+                                }}
+                                className="bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80 text-xs font-bold px-3 py-2 rounded-xl flex items-center space-x-1 shadow-sm transition cursor-pointer"
+                                title="Reject ad and payment slip"
+                              >
+                                <XCircle className="w-4 h-4" />
+                                <span>Reject</span>
+                              </button>
+
+                              {/* Mark / Unmark Fake */}
+                              <button
+                                onClick={() => onMarkFakeAd(ad.id)}
+                                className={`text-xs font-bold px-3 py-2 rounded-xl flex items-center space-x-1 shadow-sm transition cursor-pointer ${
+                                  isFake
+                                    ? 'bg-purple-700 hover:bg-purple-600 text-white'
+                                    : 'bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60'
+                                }`}
+                                title={isFake ? 'Remove Fake Flag' : 'Mark this advertisement as Fake / Scam'}
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                <span>{isFake ? 'Unmark Fake' : 'Scam / Fake'}</span>
+                              </button>
+                            </div>
                           </div>
                         ) : (
-                          <>
+                          <div className="flex flex-wrap items-center gap-2 w-full">
                             {/* Quick Extend +5 Days */}
                             <button
                               onClick={() => onRenewAd && onRenewAd(ad.id, 5)}
-                              className="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition cursor-pointer"
+                              className="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center space-x-1 shadow-sm transition cursor-pointer"
                               title="Extend validity period by +5 days"
                             >
-                              <RefreshCw className="w-3 h-3" />
+                              <RefreshCw className="w-3.5 h-3.5" />
                               <span>{validity.isExpired ? 'Re-activate (+5d)' : '+5 Days'}</span>
                             </button>
 
@@ -2306,10 +2411,10 @@ export default function AdminPanel({
                                 setExtensionDaysInput(5);
                                 setExtensionDateInput('');
                               }}
-                              className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition cursor-pointer"
+                              className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center space-x-1 shadow-sm transition cursor-pointer"
                               title="Set custom days or exact calendar date"
                             >
-                              <Calendar className="w-3 h-3" />
+                              <Calendar className="w-3.5 h-3.5" />
                               <span>{validity.isExpired ? 'Re-activate Custom...' : 'Extend Custom...'}</span>
                             </button>
 
@@ -2330,67 +2435,37 @@ export default function AdminPanel({
                                     onExpireAd && onExpireAd(ad.id);
                                   }
                                 }}
-                                className="bg-rose-950/70 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition cursor-pointer"
+                                className="bg-rose-950/70 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center space-x-1 shadow-sm transition cursor-pointer"
                                 title="Force expire this ad now"
                               >
-                                <Clock className="w-3 h-3" />
+                                <Clock className="w-3.5 h-3.5" />
                                 <span>Expire Now</span>
                               </button>
                             )}
 
                             <button
                               onClick={() => onRejectAd(ad.id)}
-                              className="bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition cursor-pointer"
+                              className="bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center space-x-1 shadow-sm transition cursor-pointer"
                             >
                               <XCircle className="w-3.5 h-3.5" />
                               <span>Set Pending</span>
                             </button>
-                          </>
+
+                            {/* Mark / Unmark Fake Ad Button */}
+                            <button
+                              onClick={() => onMarkFakeAd(ad.id)}
+                              className={`text-xs font-bold px-3 py-1.5 rounded-xl flex items-center space-x-1 shadow-sm transition cursor-pointer ml-auto ${
+                                isFake
+                                  ? 'bg-purple-700 hover:bg-purple-600 text-white'
+                                  : 'bg-red-950/80 hover:bg-red-900 text-red-300 hover:text-white border border-red-500/40'
+                              }`}
+                              title={isFake ? 'Remove Fake Flag' : 'Mark this advertisement as Fake / Scam'}
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>{isFake ? 'Unmark Fake' : 'Mark Fake'}</span>
+                            </button>
+                          </div>
                         )}
-
-                        {/* Mark / Unmark Fake Ad Button */}
-                        <button
-                          onClick={() => onMarkFakeAd(ad.id)}
-                          className={`text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition cursor-pointer ${
-                            isFake
-                              ? 'bg-purple-700 hover:bg-purple-600 text-white'
-                              : 'bg-red-950/80 hover:bg-red-900 text-red-300 hover:text-white border border-red-500/40'
-                          }`}
-                          title={isFake ? 'Remove Fake Flag' : 'Mark this advertisement as Fake / Scam'}
-                        >
-                          <AlertTriangle className="w-3.5 h-3.5" />
-                          <span>{isFake ? 'Unmark Fake' : 'Mark Fake'}</span>
-                        </button>
-
-                        <button
-                          onClick={() => setEditingAd(ad)}
-                          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition cursor-pointer"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                          <span>Edit</span>
-                        </button>
-
-                        <button
-                          onClick={async () => {
-                            const confirmed = await showConfirm({
-                              title: 'Delete Advertisement',
-                              titleSin: 'දැන්වීම ඉවත් කිරීම',
-                              message: `Are you sure you want to permanently delete advertisement #${ad.id} ("${ad.title}")?`,
-                              messageSin: `දැන්වීම #${ad.id} ස්ථිරවම ඉවත් කිරීමට ඔබට සහතිකද?`,
-                              type: 'danger',
-                              confirmText: 'Delete Ad (ඉවත් කරන්න)',
-                              cancelText: 'Cancel (අවලංගු කරන්න)'
-                            });
-                            if (confirmed) {
-                              onDeleteAd(ad.id);
-                              onShowToast && onShowToast(`Ad #${ad.id} deleted.`);
-                            }
-                          }}
-                          className="bg-red-700 hover:bg-red-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center space-x-1 shadow-sm transition cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Delete</span>
-                        </button>
                       </div>
                     </div>
                   );
@@ -7146,127 +7221,195 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* Payment Slip Inspection Modal */}
+      {/* Payment Slip Inspection Modal (High-Fidelity Executive Suite) */}
       {inspectingSlipAd && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#1e293b] border border-gray-700 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
-            <div className="flex items-center justify-between p-4 border-b border-gray-800 bg-[#0f172a]">
-              <div className="flex items-center space-x-2">
-                <FileText className="w-5 h-5 text-[#f03a5f]" />
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-[#141e33] border border-gray-700/90 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[94vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-800/90 bg-gradient-to-r from-[#0b1329] via-[#0f172a] to-[#0b1329]">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-[#f03a5f]">
+                  <FileText className="w-5 h-5" />
+                </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-white">
-                    Bank Payment Slip Verification
-                  </h3>
-                  <p className="text-[11px] text-gray-400">
-                    Ad #{inspectingSlipAd.id} • {inspectingSlipAd.badgeType}
+                  <div className="flex items-center space-x-2">
+                    <h3 className="font-black text-sm sm:text-base text-white">
+                      Bank Payment Slip Verification
+                    </h3>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
+                      isPdfSlip(inspectingSlipAd.paymentSlip)
+                        ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                        : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                    }`}>
+                      {isPdfSlip(inspectingSlipAd.paymentSlip) ? '📑 PDF Document' : '🖼️ Photo / Image Slip'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Ad #{inspectingSlipAd.id} • {inspectingSlipAd.title} • {inspectingSlipAd.phone}
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setInspectingSlipAd(null)}
-                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+
+              <div className="flex items-center space-x-2">
+                <a
+                  href={inspectingSlipAd.paymentSlip}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hidden sm:inline-flex items-center space-x-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-xl text-xs font-bold border border-gray-700 transition"
+                  title="Open document in a separate browser tab"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>New Tab</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setInspectingSlipAd(null)}
+                  className="text-gray-400 hover:text-white p-2 rounded-xl hover:bg-gray-800/80 transition cursor-pointer"
+                  title="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="p-4 overflow-y-auto space-y-4 flex-1">
-              {/* Slip Preview Box (Supports both PDF & Image) */}
-              {isPdfSlip(inspectingSlipAd.paymentSlip) ? (
-                <div className="bg-[#0b1329] border border-gray-800 rounded-xl p-3 flex flex-col items-center justify-center space-y-2.5">
-                  <div className="w-full h-80 rounded-lg overflow-hidden border border-gray-700 bg-white shadow-inner">
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+              {/* Slip Inspection Canvas */}
+              <div className="bg-[#070b14] border border-gray-800 rounded-2xl overflow-hidden shadow-inner flex flex-col">
+                {/* Canvas Top Action Bar */}
+                <div className="px-3.5 py-2 bg-gray-900/90 border-b border-gray-800/80 flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-2 text-gray-300 font-medium text-[11px]">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span>Official Bank Deposit Receipt Preview</span>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <a
+                      href={inspectingSlipAd.paymentSlip}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-bold transition flex items-center space-x-1"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Full View</span>
+                    </a>
+                    <a
+                      href={inspectingSlipAd.paymentSlip}
+                      target="_blank"
+                      rel="noreferrer"
+                      download={`bank-slip-${inspectingSlipAd.id || 'receipt'}.${isPdfSlip(inspectingSlipAd.paymentSlip) ? 'pdf' : 'jpg'}`}
+                      className="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-bold transition flex items-center space-x-1"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>Download</span>
+                    </a>
+                  </div>
+                </div>
+
+                {/* Canvas Viewer */}
+                <div className="h-[52vh] min-h-[380px] max-h-[540px] w-full relative flex items-center justify-center bg-gray-950">
+                  {isPdfSlip(inspectingSlipAd.paymentSlip) ? (
                     <iframe
                       src={inspectingSlipAd.paymentSlip}
                       title="PDF Payment Slip"
-                      className="w-full h-full border-0"
+                      className="w-full h-full border-0 bg-white"
                     />
+                  ) : (
+                    <div className="w-full h-full overflow-auto flex items-center justify-center p-3">
+                      <img
+                        src={inspectingSlipAd.paymentSlip}
+                        alt="Bank Payment Slip"
+                        className="max-h-[48vh] max-w-full object-contain rounded-xl shadow-2xl"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Transaction & Ad Summary Cards (4 Metrics Grid) */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                {/* 1. Expected Amount */}
+                <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
+                  <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Amount to Verify</span>
+                  <div className="mt-1">
+                    <strong className="text-emerald-400 block font-mono text-base sm:text-lg font-black">
+                      {inspectingSlipAd.price || `Rs. ${inspectingSlipAd.paymentAmount || 1500}`}
+                    </strong>
+                    <span className="text-[10px] text-amber-300 font-medium">
+                      Status: {inspectingSlipAd.paymentStatus || 'Pending'}
+                    </span>
                   </div>
-                  <a
-                    href={inspectingSlipAd.paymentSlip}
-                    target="_blank"
-                    rel="noreferrer"
-                    download={`slip-${inspectingSlipAd.id || 'receipt'}.pdf`}
-                    className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-xs"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Open / Download PDF Document (සම්පූර්ණ PDF එක බලන්න)</span>
-                  </a>
-                </div>
-              ) : (
-                <div className="bg-[#0b1329] border border-gray-800 rounded-xl p-3 flex flex-col items-center justify-center space-y-2 max-h-80 overflow-auto">
-                  <img
-                    src={inspectingSlipAd.paymentSlip}
-                    alt="Bank Payment Slip"
-                    className="max-h-64 w-auto object-contain rounded-lg shadow-md"
-                  />
-                  <a
-                    href={inspectingSlipAd.paymentSlip}
-                    target="_blank"
-                    rel="noreferrer"
-                    download={`slip-${inspectingSlipAd.id || 'receipt'}.jpg`}
-                    className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[11px] font-bold transition flex items-center space-x-1.5 shadow-xs"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Open Full Resolution Image</span>
-                  </a>
-                </div>
-              )}
-
-              {/* Transaction & Ad Summary */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
-                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
-                  <span className="text-[10px] text-gray-400 block">Ad Title</span>
-                  <strong className="text-white truncate block">{inspectingSlipAd.title}</strong>
                 </div>
 
-                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
-                  <span className="text-[10px] text-gray-400 block">User Contact</span>
-                  <strong className="text-amber-400 block">{inspectingSlipAd.phone}</strong>
+                {/* 2. Payment Method & Ref */}
+                <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
+                  <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Payment Method</span>
+                  <div className="mt-1">
+                    <strong className="text-blue-400 block font-bold truncate">
+                      {inspectingSlipAd.paymentMethod || 'Bank Transfer'}
+                    </strong>
+                    <span className="text-[10px] text-gray-300 font-mono block truncate">
+                      Ref: <span className="text-amber-300 font-bold">{inspectingSlipAd.paymentRef || 'Not specified'}</span>
+                    </span>
+                  </div>
                 </div>
 
-                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
-                  <span className="text-[10px] text-gray-400 block">Expected Amount</span>
-                  <strong className="text-green-400 block font-mono text-sm">
-                    {inspectingSlipAd.price || `Rs. ${inspectingSlipAd.paymentAmount || 1500}`}
-                  </strong>
+                {/* 3. Advertiser Contact */}
+                <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
+                  <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Advertiser Contact</span>
+                  <div className="mt-1">
+                    <strong className="text-white block font-mono font-bold">
+                      {inspectingSlipAd.phone}
+                    </strong>
+                    <a
+                      href={`https://wa.me/${(inspectingSlipAd.phone || '').replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-emerald-400 hover:underline flex items-center space-x-1 mt-0.5"
+                    >
+                      <MessageCircle className="w-3 h-3" />
+                      <span>Chat on WhatsApp</span>
+                    </a>
+                  </div>
                 </div>
 
-                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
-                  <span className="text-[10px] text-gray-400 block">Payment Method</span>
-                  <strong className="text-blue-400 block">{inspectingSlipAd.paymentMethod || 'Bank Transfer'}</strong>
-                </div>
-
-                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
-                  <span className="text-[10px] text-gray-400 block">Bank Ref / Depositor</span>
-                  <strong className="text-gray-200 block">{inspectingSlipAd.paymentRef || 'Not specified'}</strong>
-                </div>
-
-                <div className="bg-[#0f172a] p-2.5 rounded-xl border border-gray-800">
-                  <span className="text-[10px] text-gray-400 block">Submitted At</span>
-                  <span className="text-gray-400 text-[11px] block">
-                    {inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt
-                      ? new Date(inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt).toLocaleString('en-GB')
-                      : 'N/A'}
-                  </span>
+                {/* 4. Submission Details */}
+                <div className="bg-[#0b1329] p-3.5 rounded-xl border border-gray-800 shadow-sm flex flex-col justify-between">
+                  <span className="text-[10px] text-gray-400 block font-bold uppercase tracking-wider">Submitted Date</span>
+                  <div className="mt-1">
+                    <span className="text-gray-300 text-[11px] block font-medium">
+                      {inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt
+                        ? new Date(inspectingSlipAd.submittedAt || inspectingSlipAd.createdAt).toLocaleString('en-GB')
+                        : 'N/A'}
+                    </span>
+                    <span className="text-[10px] text-purple-300 font-bold block mt-0.5">
+                      Badge: {inspectingSlipAd.badgeType}
+                    </span>
+                  </div>
                 </div>
               </div>
 
               {/* Validity Days Picker for Approval */}
-              <div className="bg-gray-900 border border-gray-800 p-3 rounded-xl space-y-2">
-                <span className="text-xs font-bold text-gray-300 block">
-                  Select Approval Validity Period (වලංගු කාලය තෝරන්න):
-                </span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {[1, 3, 5, 7, 10, 15, 30].map(d => (
+              <div className="bg-[#0b1329] border border-gray-800 p-3.5 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-300 flex items-center space-x-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Select Approval Validity Period (වලංගු කාලය තෝරන්න):</span>
+                  </span>
+                  <span className="text-xs font-mono font-bold text-emerald-400">
+                    Selected: {slipValidityDays} Days
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {[1, 3, 5, 7, 10, 15, 30, 60, 90].map(d => (
                     <button
                       key={d}
                       type="button"
                       onClick={() => setSlipValidityDays(d)}
-                      className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
                         slipValidityDays === d
-                          ? 'bg-[#f03a5f] text-white shadow-xs'
-                          : 'bg-gray-800 text-gray-400 hover:text-white'
+                          ? 'bg-[#f03a5f] text-white shadow-md shadow-red-950/50 scale-105'
+                          : 'bg-gray-800/90 text-gray-400 hover:text-white hover:bg-gray-700'
                       }`}
                     >
                       {d} Days
@@ -7276,8 +7419,8 @@ export default function AdminPanel({
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div className="p-3.5 border-t border-gray-800 bg-[#0f172a] flex flex-wrap items-center justify-between gap-2">
+            {/* Modal Footer Actions */}
+            <div className="p-4 border-t border-gray-800/90 bg-[#0b1329] flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={async () => {
@@ -7296,19 +7439,19 @@ export default function AdminPanel({
                     setInspectingSlipAd(null);
                   }
                 }}
-                className="px-4 py-2 bg-red-950/70 hover:bg-red-900 text-red-300 border border-red-800 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer"
+                className="px-4 py-2.5 bg-red-950/60 hover:bg-red-900/90 text-red-300 border border-red-800/80 rounded-xl text-xs font-bold transition flex items-center space-x-2 cursor-pointer shadow-sm"
               >
                 <XCircle className="w-4 h-4" />
                 <span>Reject Slip / Invalid (ප්‍රතික්ෂේප කරන්න)</span>
               </button>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2.5">
                 <button
                   type="button"
                   onClick={() => setInspectingSlipAd(null)}
-                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                  className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold transition cursor-pointer"
                 >
-                  Close
+                  Close (වසන්න)
                 </button>
                 <button
                   type="button"
@@ -7316,7 +7459,7 @@ export default function AdminPanel({
                     onApproveAd && onApproveAd(inspectingSlipAd.id, slipValidityDays);
                     setInspectingSlipAd(null);
                   }}
-                  className="px-5 py-2 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-extrabold shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-xl text-xs font-black shadow-lg shadow-green-950/50 transition flex items-center space-x-2 cursor-pointer hover:scale-[1.02] active:scale-95"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>✓ Verify Payment & Approve Ad ({slipValidityDays} Days)</span>
