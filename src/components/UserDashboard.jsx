@@ -18,6 +18,7 @@ import {
   ThumbsUp, 
   Eye, 
   CheckCircle, 
+  CheckCircle2, 
   Edit, 
   Power,
   Upload,
@@ -573,7 +574,7 @@ export default function UserDashboard({
         <div className="bg-white border border-gray-200 rounded-xl p-3.5 shadow-xs">
           <p className="text-xs font-semibold text-gray-500">Credits</p>
           <p className="text-base font-extrabold text-[#16a34a] mt-1">
-            Rs. {credits.toFixed(2)}
+            Rs. {Number(credits || 0).toFixed(2)}
           </p>
         </div>
       </div>
