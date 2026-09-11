@@ -104,8 +104,20 @@ export default function App() {
   const [selectedAd, setSelectedAd] = useState(null);
   const [currentView, setCurrentView] = useState(() => {
     try {
+      const isCeoUnlockedSaved = localStorage.getItem('taizer_ads_ceo_unlocked') === 'true';
       const savedUser = localStorage.getItem('taizer_ads_current_user');
       const savedView = localStorage.getItem('taizer_ads_current_view');
+      const path = window.location.pathname.toLowerCase();
+      const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      const isCeoUrl = path.includes('ceo') || hash.includes('ceo') || search.includes('ceo');
+
+      if (isCeoUnlockedSaved && (savedView === 'admin' || isCeoUrl)) {
+        return 'admin';
+      }
+      if (isCeoUrl) {
+        return 'ceo-login';
+      }
       if (savedUser && savedView === 'dashboard') {
         return 'dashboard';
       }
@@ -134,7 +146,13 @@ export default function App() {
       return false;
     }
   });
-  const [isCeoUnlocked, setIsCeoUnlocked] = useState(false);
+  const [isCeoUnlocked, setIsCeoUnlocked] = useState(() => {
+    try {
+      return localStorage.getItem('taizer_ads_ceo_unlocked') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilterQuery, setActiveFilterQuery] = useState('');
@@ -254,7 +272,8 @@ export default function App() {
       const search = window.location.search.toLowerCase();
       
       if (path.includes('ceo') || hash.includes('ceo') || search.includes('ceo')) {
-        if (!isCeoUnlocked) {
+        const unlocked = isCeoUnlocked || localStorage.getItem('taizer_ads_ceo_unlocked') === 'true';
+        if (!unlocked) {
           setCurrentView('ceo-login');
         } else {
           setCurrentView('admin');
@@ -277,6 +296,10 @@ export default function App() {
       window.history.pushState(null, '', '/');
     }
     setIsCeoUnlocked(false);
+    try {
+      localStorage.removeItem('taizer_ads_ceo_unlocked');
+      localStorage.setItem('taizer_ads_current_view', 'feed');
+    } catch (e) {}
     setCurrentView('feed');
     showToast('Admin session closed. (ප්‍රසිද්ධ මුල් පිටුවට පැමිණියෙමු)');
   };
@@ -448,11 +471,14 @@ export default function App() {
   // Persist currentView to localStorage for seamless refresh
   useEffect(() => {
     try {
-      if (currentView === 'dashboard' || currentView === 'feed') {
+      if (currentView === 'dashboard' || currentView === 'feed' || (currentView === 'admin' && isCeoUnlocked)) {
         localStorage.setItem('taizer_ads_current_view', currentView);
       }
+      if (isCeoUnlocked) {
+        localStorage.setItem('taizer_ads_ceo_unlocked', 'true');
+      }
     } catch (e) {}
-  }, [currentView]);
+  }, [currentView, isCeoUnlocked]);
 
   const updateAdsAndPersist = (newAds) => {
     setAds(newAds);
@@ -1055,6 +1081,10 @@ export default function App() {
             siteConfig={siteConfig}
             onUnlockSuccess={() => {
               setIsCeoUnlocked(true);
+              try {
+                localStorage.setItem('taizer_ads_ceo_unlocked', 'true');
+                localStorage.setItem('taizer_ads_current_view', 'admin');
+              } catch (e) {}
               setCurrentView('admin');
             }}
             onExit={handleExitAdmin}
