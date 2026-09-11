@@ -110,6 +110,7 @@ export default function LoginForm({
           title: 'SMS Delivery Notice',
           titleSin: 'SMS පිළිබඳ දැනුම්දීම',
           message: `${result.message || 'Could not send SMS.'} You can use the master test code: 1234 to log in.`,
+          messageSin: 'Notify.lk හරහා සැබෑ SMS යැවීම අසාර්ථක විය (SMS Balance හෝ API Key පරීක්ෂා කරන්න). ලොග් වීම සඳහා Master Code එක: 1234 ඇතුළත් කරන්න.',
           type: 'warning'
         });
         setActiveOtp('1234');
@@ -123,6 +124,7 @@ export default function LoginForm({
         title: 'Connection Notice',
         titleSin: 'සම්බන්ධතා දැනුම්දීම',
         message: 'Could not connect to SMS Gateway. You can still login with test code: 1234',
+        messageSin: 'SMS Gateway වෙත සම්බන්ධ වීමට නොහැකි විය. ලොග් වීම සඳහා 1234 කේතය භාවිත කරන්න.',
         type: 'info'
       });
       setActiveOtp('1234');
